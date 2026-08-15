@@ -38,6 +38,7 @@ export function useSessionTail(options: {
         let closedByUs = false;
         let retry: ReturnType<typeof setTimeout> | null = null;
         let socket: WebSocket | null = null;
+        let lastFrame = Date.now();
         const tally = { kept: 0, discarded: 0, bytes: 0 };
 
         const connect = () => {
@@ -49,9 +50,12 @@ export function useSessionTail(options: {
 
             ws.onmessage = (event) => {
                 const raw = event.data as string;
-                tally.bytes += raw.length;
+                lastFrame = Date.now();
                 const msg = JSON.parse(raw);
+                // Heartbeats keep the socket from idling out; they are not data,
+                // so they do not count toward what this subscription cost.
                 if (msg.type !== "log") return;
+                tally.bytes += raw.length;
 
                 if (msg.data.sessionId === sessionId) {
                     tally.kept += 1;
@@ -70,9 +74,21 @@ export function useSessionTail(options: {
         };
 
         connect();
+
+        // A socket dropped without a close handshake stays readyState OPEN and
+        // simply never delivers, so onclose never fires and the retry above
+        // never runs. Silence past two heartbeat intervals means it is gone.
+        const watchdog = setInterval(() => {
+            if (Date.now() - lastFrame < 70_000) return;
+            lastFrame = Date.now();
+            try { socket?.close(); } catch { /* replaced below regardless */ }
+            connect();
+        }, 15_000);
+
         return () => {
             closedByUs = true;
             if (retry) clearTimeout(retry);
+            clearInterval(watchdog);
             socket?.close();
         };
     }, [sessionId, filtered]);

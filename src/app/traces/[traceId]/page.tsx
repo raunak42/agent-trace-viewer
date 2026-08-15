@@ -58,7 +58,12 @@ function SessionPage({ traceId }: { traceId: string }) {
         return () => clearInterval(t);
     }, []);
     const idleSeconds = Math.round((now - lastActivity) / 1000);
-    const streaming = idleSeconds < 25;
+    const streaming = idleSeconds < 30;
+    // "Ended" would be a claim we cannot make: silence on this subscription
+    // means no turns have arrived, not that the thread is finished.
+    const idleLabel = idleSeconds < 90
+        ? `idle ${idleSeconds}s`
+        : `idle ${Math.floor(idleSeconds / 60)}m ${idleSeconds % 60}s`;
 
     const [jumping, setJumping] = useState(false);
     const jumpToLiveSession = async () => {
@@ -118,7 +123,7 @@ function SessionPage({ traceId }: { traceId: string }) {
                             </span>
                             <span className={`size-1.5 rounded-full ${streaming ? "animate-pulse bg-success" : "bg-muted-foreground/40"}`} />
                             <span className="text-2xs text-muted-foreground uppercase">
-                                {streaming ? "live" : `ended · quiet ${idleSeconds}s`}
+                                {streaming ? "live" : idleLabel}
                             </span>
                         </span>
                     )}
@@ -129,7 +134,7 @@ function SessionPage({ traceId }: { traceId: string }) {
                             disabled={jumping}
                             className="cursor-pointer rounded-lg border border-border px-3 py-1.5 text-[13px] text-foreground transition-colors hover:bg-muted disabled:opacity-50"
                         >
-                            {jumping ? "finding…" : "Open a live session"}
+                            {jumping ? "finding…" : "Open an active session"}
                         </button>
                     )}
                 </div>
