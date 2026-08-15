@@ -8,7 +8,7 @@ import { useViewMetrics } from "@/lib/useViewMetrics";
 import type { Trace } from "@/lib/types";
 import { SessionOptimized } from "@/components/nl/SessionOptimized";
 import { SessionNaive } from "@/components/nl/SessionNaive";
-import { ChevronDownIcon, ChevronLeftIcon, SlidersIcon } from "@/components/nl/icons";
+import { ChevronLeftIcon } from "@/components/nl/icons";
 
 type Build = "optimized" | "naive";
 
@@ -114,10 +114,7 @@ function SessionPage({ traceId }: { traceId: string }) {
                         className="flex size-8 shrink-0 items-center justify-center rounded-lg text-foreground transition-colors hover:bg-muted">
                         <ChevronLeftIcon className="size-4" />
                     </Link>
-                    <button type="button" className="flex cursor-pointer items-center gap-1.5 text-[15px] text-foreground">
-                        {stamp}
-                        <ChevronDownIcon className="size-4 text-muted-foreground" />
-                    </button>
+                    <span className="text-[15px] text-foreground">{stamp}</span>
                     {anchor && (
                         <span className="flex items-center gap-2 rounded-xl border border-border px-3 py-1.5 text-[13px]">
                             <span className="text-foreground">session</span>
@@ -140,19 +137,6 @@ function SessionPage({ traceId }: { traceId: string }) {
                             {jumping ? "finding…" : "Open an active session"}
                         </button>
                     )}
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
-                    <button type="button"
-                        className="flex h-9 cursor-pointer items-center gap-2 rounded-full bg-[#18181b] px-4 text-[13px] font-medium text-white transition-colors hover:bg-[#27272a]">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-                            <path d="M8 5v14l11-7z" />
-                        </svg>
-                        Watch replay
-                    </button>
-                    <button type="button" aria-label="Display preferences"
-                        className="flex size-9 cursor-pointer items-center justify-center rounded-lg border border-border text-foreground transition-colors hover:bg-muted">
-                        <SlidersIcon />
-                    </button>
                 </div>
             </header>
 
