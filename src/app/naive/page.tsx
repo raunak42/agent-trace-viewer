@@ -111,9 +111,6 @@ export default function NaiveView() {
                         style={{ overflowAnchor: "none" }}
                         data-list-root
                     >
-                        {stream.loadingOlder && (
-                            <div className="py-1.5 text-center text-2xs text-muted-foreground">loading older…</div>
-                        )}
                         {stream.traces.map((trace) => (
                             <TraceRow
                                 key={trace.id}
@@ -121,6 +118,11 @@ export default function NaiveView() {
                                 onOpen={(t) => router.push(`/traces/${t._id}`)}
                             />
                         ))}
+                        {/* At the end, because that is where older pages land
+                            once the list runs newest-first. */}
+                        {stream.loadingOlder && (
+                            <div className="py-2 text-center text-2xs text-muted-foreground">loading older…</div>
+                        )}
                     </div>
                     <NewArrivalsPill count={newCount} onClick={jumpToNewest} />
                 </div>

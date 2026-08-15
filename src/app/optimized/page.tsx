@@ -173,18 +173,17 @@ export default function OptimizedView() {
                             })}
                         </div>
                         <div ref={bottomSentinel} className="h-px" />
+                        {/* Scrolls with the rows rather than floating over them:
+                            older pages arrive at the bottom, so this belongs at
+                            the end of the content, not pinned across the view. */}
+                        {stream.loadingOlder && (
+                            <div className="py-2 text-center text-2xs text-muted-foreground">loading older…</div>
+                        )}
+                        {!stream.hasMore && stream.traces.length > 0 && !stream.loadingOlder && (
+                            <div className="py-2 text-center text-2xs text-muted-foreground/60">start of buffer</div>
+                        )}
                     </div>
 
-                    {stream.loadingOlder && (
-                        <div className="pointer-events-none absolute inset-x-0 bottom-0 py-1.5 text-center text-2xs text-muted-foreground">
-                            loading older…
-                        </div>
-                    )}
-                    {!stream.hasMore && stream.traces.length > 0 && !stream.loadingOlder && (
-                        <div className="pointer-events-none absolute inset-x-0 bottom-0 py-1.5 text-center text-2xs text-muted-foreground/60">
-                            start of buffer
-                        </div>
-                    )}
                     <NewArrivalsPill count={newCount} onClick={jumpToNewest} />
                 </div>
             </div>
