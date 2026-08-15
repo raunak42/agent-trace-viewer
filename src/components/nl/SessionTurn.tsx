@@ -107,10 +107,10 @@ export function SessionTurn({ trace, highlighted, divider }: {
     const root = spans.find((s) => !s.parent_span_id) ?? spans[0];
     const roots = spans.filter((s) => !s.parent_span_id);
 
-    // Their table denormalises input/output onto the row; ours live on the
-    // root span, so the turn reads them from there.
-    const input = root?.data.input_value ?? trace.name;
-    const output = root?.data.output_value ?? "";
+    // Denormalised on the row now, same as theirs; the root span is the
+    // fallback for anything captured before that field existed.
+    const input = trace.input || root?.data.input_value || trace.name;
+    const output = trace.output || root?.data.output_value || "";
 
     return (
         <section id={`turn-${trace._id}`} className={divider ? "border-t border-border pt-10" : ""}>

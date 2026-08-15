@@ -31,11 +31,12 @@ export const COLUMNS: Column[] = [
     { id: "ingestedAt", label: "Ingested at", width: 140 },
     { id: "replay", label: "Replay", width: 112, align: "center" },
     { id: "status", label: "Status", width: 90, align: "center" },
-    { id: "name", label: "Name", width: 300, grow: true },
-    { id: "workflow", label: "Workflow", width: 140 },
-    { id: "spans", label: "Spans", width: 90 },
-    { id: "tokens", label: "Tokens", width: 120 },
-    { id: "latency", label: "Latency", width: 110 },
+    { id: "input", label: "Input", width: 260, grow: true },
+    { id: "output", label: "Output", width: 260, grow: true },
+    { id: "workflow", label: "Workflow", width: 150 },
+    { id: "spans", label: "Spans", width: 80 },
+    { id: "tokens", label: "Tokens", width: 110 },
+    { id: "latency", label: "Latency", width: 100 },
 ];
 
 const cellStyle = (c: Column): React.CSSProperties => ({
@@ -138,8 +139,18 @@ export function TraceRow({
                         return cell(c, trace.status === "success"
                             ? <StatusSuccessIcon className="size-4 text-success" />
                             : <StatusErrorIcon className="size-4 text-destructive" />);
-                    case "name":
-                        return cell(c, <span className="truncate text-foreground/85">{trace.name}</span>);
+                    case "input":
+                        return cell(c, (
+                            <span className="truncate text-foreground/85" title={trace.input}>
+                                {trace.input || trace.name}
+                            </span>
+                        ));
+                    case "output":
+                        return cell(c, (
+                            <span className="truncate" title={trace.output}>
+                                {trace.output || <span className="text-muted-foreground">–</span>}
+                            </span>
+                        ));
                     case "workflow":
                         return cell(c, <span className="truncate">{trace.workflowName || "—"}</span>);
                     case "spans":

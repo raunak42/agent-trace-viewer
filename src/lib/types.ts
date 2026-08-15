@@ -52,6 +52,9 @@ export interface TraceSummary {
     totalTokensCost: number;
     workflowName: string;
     sessionId: string;
+    /** Denormalised from the root span, so a list row needs no spans. */
+    input: string;
+    output: string;
     status: TraceStatus;
     projection: "session" | "list";
 }
