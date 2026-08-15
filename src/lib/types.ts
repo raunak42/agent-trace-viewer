@@ -86,4 +86,6 @@ export interface SessionSummary {
     sessionId: string;
     turns: number;
     lastId: number;
+    /** Still receiving turns, rather than a finished thread. */
+    live: boolean;
 }

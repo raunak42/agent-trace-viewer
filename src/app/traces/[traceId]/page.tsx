@@ -1,9 +1,9 @@
 "use client";
 
-import { Suspense, use, useCallback, useEffect, useState } from "react";
+import { Suspense, use, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { fetchTrace } from "@/lib/api";
+import { useRouter, useSearchParams } from "next/navigation";
+import { fetchSessionList, fetchSessionPage, fetchTrace } from "@/lib/api";
 import { useViewMetrics } from "@/lib/useViewMetrics";
 import type { Trace } from "@/lib/types";
 import { SessionOptimized } from "@/components/nl/SessionOptimized";
@@ -19,6 +19,7 @@ type Build = "optimized" | "naive";
  */
 function SessionPage({ traceId }: { traceId: string }) {
     const params = useSearchParams();
+    const router = useRouter();
     const build: Build = params.get("build") === "naive" ? "naive" : "optimized";
 
     // Keyed by the id it was fetched for, so switching trace clears the old
@@ -43,6 +44,36 @@ function SessionPage({ traceId }: { traceId: string }) {
 
     const onStats = useCallback((s: typeof stats) => setStats(s), []);
     const onTail = useCallback((t: typeof tail) => setTail(t), []);
+
+    // A thread that has finished simply stops, which is indistinguishable from
+    // a broken page unless the view says which it is.
+    const [lastActivity, setLastActivity] = useState(() => Date.now());
+    const [now, setNow] = useState(() => Date.now());
+    const seenKept = useRef(0);
+    useEffect(() => {
+        if (tail.kept > seenKept.current) { seenKept.current = tail.kept; setLastActivity(Date.now()); }
+    }, [tail.kept]);
+    useEffect(() => {
+        const t = setInterval(() => setNow(Date.now()), 2000);
+        return () => clearInterval(t);
+    }, []);
+    const idleSeconds = Math.round((now - lastActivity) / 1000);
+    const streaming = idleSeconds < 25;
+
+    const [jumping, setJumping] = useState(false);
+    const jumpToLiveSession = async () => {
+        setJumping(true);
+        try {
+            const { sessions } = await fetchSessionList(5, build);
+            const target = sessions.find((s) => s.live && s.sessionId !== anchor?.sessionId) ?? sessions[0];
+            if (!target) return;
+            const page = await fetchSessionPage(target.sessionId, { limit: 1, projection: "list", view: build });
+            const first = page.logs[0];
+            if (first) router.push(`/traces/${first._id}?build=${build}`);
+        } finally {
+            setJumping(false);
+        }
+    };
 
     const stamp = anchor
         ? new Date(anchor.ts).toLocaleString("en-GB", {
@@ -85,7 +116,21 @@ function SessionPage({ traceId }: { traceId: string }) {
                             <span className="font-mono text-xs tabular-nums text-muted-foreground">
                                 {stats.total || "…"} turns
                             </span>
+                            <span className={`size-1.5 rounded-full ${streaming ? "animate-pulse bg-success" : "bg-muted-foreground/40"}`} />
+                            <span className="text-2xs text-muted-foreground uppercase">
+                                {streaming ? "live" : `ended · quiet ${idleSeconds}s`}
+                            </span>
                         </span>
+                    )}
+                    {anchor && !streaming && (
+                        <button
+                            type="button"
+                            onClick={() => void jumpToLiveSession()}
+                            disabled={jumping}
+                            className="cursor-pointer rounded-lg border border-border px-3 py-1.5 text-[13px] text-foreground transition-colors hover:bg-muted disabled:opacity-50"
+                        >
+                            {jumping ? "finding…" : "Open a live session"}
+                        </button>
                     )}
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
