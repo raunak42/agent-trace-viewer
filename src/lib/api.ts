@@ -74,3 +74,17 @@ export function fetchSessionPage(sessionId: string, options: {
     if (options.projection) q.set("projection", options.projection);
     return measured(options.view ?? null, `${API_BASE}/api/sessions/${sessionId}?${q}`);
 }
+
+export interface BufferStats {
+    bootId: string;
+    size: number;
+    oldestId: number;
+    lastLogId: number;
+    sessions: number;
+}
+
+/** How much history exists server-side, read once so the header can say what
+ *  was already there before this page started watching. */
+export function fetchStats(): Promise<BufferStats> {
+    return measured(null, `${API_BASE}/api/stats`);
+}

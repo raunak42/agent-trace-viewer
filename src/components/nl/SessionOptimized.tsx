@@ -23,14 +23,20 @@ const PAGE = 50;
  *   2. only the turns near the viewport are mounted
  *   3. a turn's spans are fetched when it is opened, never up front
  */
-export function SessionOptimized({ sessionId, anchorId, onStats, onTail }: {
+export function SessionOptimized({ sessionId, anchorId, onStats, onTail, onHeader }: {
     sessionId: string;
     anchorId: string;
     onStats: (s: { loaded: number; total: number; mounted: number }) => void;
     onTail: (t: { kept: number; discarded: number; bytes: number }) => void;
+    onHeader: (h: { history: number | null; arrived: number; loaded: number }) => void;
 }) {
     const [turns, setTurns] = useState<TraceSummary[]>([]);
     const [total, setTotal] = useState(0);
+    /** Turns in this session when the page first fetched it, and turns that
+     *  have arrived since — kept apart so the header can say what was already
+     *  there rather than only what it now holds. */
+    const [history, setHistory] = useState<number | null>(null);
+    const [arrived, setArrived] = useState(0);
     const [spans, setSpans] = useState<Record<string, Span[]>>({});
     const [pending, setPending] = useState<Record<string, boolean>>({});
     const [open, setOpen] = useState<Record<string, boolean>>({});
@@ -78,6 +84,7 @@ export function SessionOptimized({ sessionId, anchorId, onStats, onTail }: {
             for (const t of page.logs) ids.current.add(t.id);
             setTurns(page.logs);
             setTotal(page.total);
+            setHistory(page.total);
             oldest.current = page.logs[0]?.id;
             newest.current = page.logs[page.logs.length - 1]?.id;
             moreOlder.current = page.logs.length === PAGE;
@@ -127,6 +134,7 @@ export function SessionOptimized({ sessionId, anchorId, onStats, onTail }: {
         if (addTurns([turn], "newer") === 0) return;
         newest.current = turn.id;
         setTotal((n) => n + 1);
+        setArrived((n) => n + 1);
         if (!atBottom.current) { counted.current += 1; setNewCount(counted.current); }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
@@ -227,6 +235,9 @@ export function SessionOptimized({ sessionId, anchorId, onStats, onTail }: {
     useEffect(() => {
         onStats({ loaded: turns.length, total, mounted: items.length });
     }, [turns.length, total, items.length, onStats]);
+    useEffect(() => {
+        onHeader({ history, arrived, loaded: turns.length });
+    }, [history, arrived, turns.length, onHeader]);
 
     const toggle = async (t: TraceSummary) => {
         const isOpen = open[t._id];

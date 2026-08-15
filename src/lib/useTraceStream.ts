@@ -42,6 +42,10 @@ export interface StreamState {
     bootId: string | null;
     /** Counts every state commit, so the two views' re-render behaviour is comparable. */
     commits: number;
+    /** Rows that arrived live since this page connected, as opposed to rows
+     *  pulled from history. Newest-first ordering means live rows land at the
+     *  top, so they are exactly the ones counted above the viewport. */
+    liveCount: number;
     delta: InsertDelta;
     loadOlder: () => void;
 }
@@ -63,6 +67,7 @@ export function useTraceStream(options: StreamOptions): StreamState {
     const [loadingOlder, setLoadingOlder] = useState(false);
     const [bootId, setBootId] = useState<string | null>(null);
     const [commits, setCommits] = useState(0);
+    const [liveCount, setLiveCount] = useState(0);
     const [delta, setDelta] = useState<InsertDelta>(NO_DELTA);
 
     // Sorted descending by id — index 0 is the newest row, which is what the
@@ -86,6 +91,7 @@ export function useTraceStream(options: StreamOptions): StreamState {
     const commit = useCallback((d: { addedAtTop: number; addedAtBottom: number }) => {
         setTraces([...store.current]);
         setCommits((c) => c + 1);
+        if (d.addedAtTop > 0) setLiveCount((n) => n + d.addedAtTop);
         setDelta((prev) => ({ addedAtTop: d.addedAtTop, addedAtBottom: d.addedAtBottom, seq: prev.seq + 1 }));
     }, []);
 
@@ -255,5 +261,5 @@ export function useTraceStream(options: StreamOptions): StreamState {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    return { traces, connection, hasMore, loadingOlder, bootId, commits, delta, loadOlder };
+    return { traces, connection, hasMore, loadingOlder, bootId, commits, liveCount, delta, loadOlder };
 }

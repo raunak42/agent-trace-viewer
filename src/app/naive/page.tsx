@@ -4,9 +4,11 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTraceStream } from "@/lib/useTraceStream";
 import { useViewMetrics } from "@/lib/useViewMetrics";
+import { fetchStats } from "@/lib/api";
 import { TableHeader, TraceRow, ROW_HEIGHT } from "@/components/nl/TraceTable";
 import { NewArrivalsPill } from "@/components/NewArrivalsPill";
 import { FooterBar, BuildSwitch } from "@/components/nl/Chrome";
+import { StreamStats, useArrivalRate } from "@/components/nl/StreamStats";
 
 const PAGE_SIZE = 50;
 
@@ -22,6 +24,14 @@ const PAGE_SIZE = 50;
  */
 export default function NaiveView() {
     const stream = useTraceStream({ projection: "session", batchMs: 0, view: "naive", pageSize: PAGE_SIZE });
+    const [history, setHistory] = useState<number | null>(null);
+    useEffect(() => {
+        let cancelled = false;
+        fetchStats().then((s) => { if (!cancelled) setHistory(s.size); }).catch(() => {});
+        return () => { cancelled = true; };
+    }, []);
+    const rate = useArrivalRate(stream.liveCount);
+
     const metrics = useViewMetrics("naive", true);
     const router = useRouter();
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -73,6 +83,13 @@ export default function NaiveView() {
 
     return (
         <main className="flex h-dvh flex-col bg-background text-foreground">
+            <StreamStats
+                unit="traces"
+                history={history}
+                arrived={stream.liveCount}
+                loaded={stream.traces.length}
+                rate={rate}
+            />
             <BuildSwitch active="naive" />
             {/* Page title, search, date range and filter chips: all faithful to
                 their layout and all inert here, since this view tails one live
@@ -111,8 +128,6 @@ export default function NaiveView() {
                 </div>
             </div>
             <FooterBar
-                pageSize={PAGE_SIZE}
-                rows={stream.traces.length}
                 rendered={stream.traces.length}
                 domNodes={metrics.domNodes}
                 commits={stream.commits}

@@ -102,10 +102,10 @@ export function Histogram({ buckets, labels }: { buckets: number[]; labels: stri
    tails a stream rather than paging, so the range readout becomes the store
    counters that make the two builds comparable.                             */
 export function FooterBar({
-    pageSize, rows, rendered, domNodes, commits, bytes, requests, connection, fps,
+    rendered, domNodes, commits, bytes, requests, connection, fps,
 }: {
-    pageSize: number; rows: number; rendered: number; domNodes: number;
-    commits: number; bytes: number; requests: number; connection: string; fps?: number;
+    rendered: number; domNodes: number; commits: number;
+    bytes: number; requests: number; connection: string; fps?: number;
 }) {
     const stat = (label: string, value: string | number) => (
         <span className="flex items-baseline gap-1.5 whitespace-nowrap">
@@ -114,38 +114,19 @@ export function FooterBar({
         </span>
     );
     return (
-        <div className="flex h-12 shrink-0 items-center justify-between gap-4 overflow-x-auto border-t border-border bg-background px-6">
-            <div className="flex shrink-0 items-center gap-2">
-                <span className="text-[13px] text-muted-foreground">Rows per page</span>
-                <button type="button"
-                    className="flex h-8 cursor-pointer items-center gap-2 rounded-lg border border-border px-2.5 font-mono text-xs tabular-nums text-foreground">
-                    {pageSize}
-                    <ChevronDownIcon className="size-3.5 text-muted-foreground" />
-                </button>
-            </div>
-            <div className="flex items-center gap-5">
-                {stat("in store", rows.toLocaleString())}
-                {stat("in dom", rendered.toLocaleString())}
-                {stat("dom nodes", domNodes.toLocaleString())}
-                {stat("commits", commits.toLocaleString())}
-                {stat("fetched", `${(bytes / 1024).toFixed(0)} KB`)}
-                {stat("requests", requests)}
-                {fps !== undefined && stat("fps", fps)}
-                <span className="flex items-center gap-1.5 whitespace-nowrap">
-                    <span className={`size-1.5 rounded-full ${connection === "live" ? "bg-success" : "bg-muted-foreground/40"}`} />
-                    <span className="text-2xs text-muted-foreground uppercase">{connection}</span>
-                </span>
-                <span className="flex shrink-0 items-center gap-1">
-                    <button type="button" aria-label="Previous"
-                        className="flex size-8 cursor-pointer items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-muted disabled:opacity-40">
-                        <ChevronLeftIcon className="size-3.5" />
-                    </button>
-                    <button type="button" aria-label="Next"
-                        className="flex size-8 cursor-pointer items-center justify-center rounded-lg border border-border text-muted-foreground transition-colors hover:bg-muted">
-                        <ChevronRightIcon className="size-3.5" />
-                    </button>
-                </span>
-            </div>
+        <div className="flex h-11 shrink-0 items-center justify-end gap-5 overflow-x-auto border-t border-border bg-background px-6">
+            {/* What this build costs to show the same data. Labelled in plain
+                words: the header above already answers how much there is. */}
+            {stat("on screen", rendered.toLocaleString())}
+            {stat("page elements", domNodes.toLocaleString())}
+            {stat("re-renders", commits.toLocaleString())}
+            {stat("downloaded", `${(bytes / 1024).toFixed(0)} KB`)}
+            {stat("requests", requests)}
+            {fps !== undefined && stat("fps", fps)}
+            <span className="flex items-center gap-1.5 whitespace-nowrap">
+                <span className={`size-1.5 rounded-full ${connection === "live" ? "bg-success" : "bg-muted-foreground/40"}`} />
+                <span className="text-2xs text-muted-foreground uppercase">{connection}</span>
+            </span>
         </div>
     );
 }

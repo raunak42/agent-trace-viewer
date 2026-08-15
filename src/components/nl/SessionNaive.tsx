@@ -23,15 +23,20 @@ const NOOP = () => {};
  *   2. every turn is mounted, and stays mounted
  *   3. every span tree is expanded, so the DOM carries the whole session
  */
-export function SessionNaive({ sessionId, anchorId, onStats, onTail }: {
+export function SessionNaive({ sessionId, anchorId, onStats, onTail, onHeader }: {
     sessionId: string;
     anchorId: string;
     onStats: (s: { loaded: number; total: number; mounted: number }) => void;
     onTail: (t: { kept: number; discarded: number; bytes: number }) => void;
+    onHeader: (h: { history: number | null; arrived: number; loaded: number }) => void;
 }) {
     const [turns, setTurns] = useState<Trace[]>([]);
     const [total, setTotal] = useState(0);
     const [done, setDone] = useState(false);
+    /** Turns present when this page first fetched, and turns that have arrived
+     *  since, kept apart for the header. */
+    const [history, setHistory] = useState<number | null>(null);
+    const [arrived, setArrived] = useState(0);
 
     // Ids already held, so a live turn that the drain also returned is not
     // added twice. Declared before the drain effect that fills it.
@@ -58,6 +63,7 @@ export function SessionNaive({ sessionId, anchorId, onStats, onTail }: {
                 for (const t of page.logs as Trace[]) known.current.add(t.id);
                 all.push(...(page.logs as Trace[]));
                 setTotal(page.total);
+                setHistory((h) => h ?? page.total);
                 setTurns([...all]);
                 if (!page.hasMore || page.nextCursor === null) break;
                 after = page.nextCursor;
@@ -85,6 +91,7 @@ export function SessionNaive({ sessionId, anchorId, onStats, onTail }: {
         known.current.add(turn.id);
         setTurns((prev) => [...prev, turn as Trace]);
         setTotal((n) => n + 1);
+        setArrived((n) => n + 1);
     }, []);
     const tail = useSessionTail({ sessionId, filtered: false, onTurn: handleTurn });
     useEffect(() => { onTail(tail); }, [tail, onTail]);
@@ -92,6 +99,9 @@ export function SessionNaive({ sessionId, anchorId, onStats, onTail }: {
     useEffect(() => {
         onStats({ loaded: turns.length, total, mounted: turns.length });
     }, [turns.length, total, onStats]);
+    useEffect(() => {
+        onHeader({ history, arrived, loaded: turns.length });
+    }, [history, arrived, turns.length, onHeader]);
 
     const scrollRef = useRef<HTMLDivElement>(null);
     const atBottom = useRef(true);

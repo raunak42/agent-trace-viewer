@@ -5,8 +5,10 @@ import { useRouter } from "next/navigation";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useTraceStream } from "@/lib/useTraceStream";
 import { useViewMetrics } from "@/lib/useViewMetrics";
+import { fetchStats } from "@/lib/api";
 import { TableHeader, TraceRow, ROW_HEIGHT } from "@/components/nl/TraceTable";
 import { FooterBar, BuildSwitch } from "@/components/nl/Chrome";
+import { StreamStats, useArrivalRate } from "@/components/nl/StreamStats";
 import { NewArrivalsPill } from "@/components/NewArrivalsPill";
 
 const PAGE_SIZE = 50;
@@ -19,6 +21,14 @@ const PAGE_SIZE = 50;
  */
 export default function OptimizedView() {
     const stream = useTraceStream({ projection: "list", batchMs: 150, view: "optimized", pageSize: PAGE_SIZE });
+    const [history, setHistory] = useState<number | null>(null);
+    useEffect(() => {
+        let cancelled = false;
+        fetchStats().then((s) => { if (!cancelled) setHistory(s.size); }).catch(() => {});
+        return () => { cancelled = true; };
+    }, []);
+    const rate = useArrivalRate(stream.liveCount);
+
     const metrics = useViewMetrics("optimized");
     const router = useRouter();
     const [newCount, setNewCount] = useState(0);
@@ -121,6 +131,13 @@ export default function OptimizedView() {
 
     return (
         <main className="flex h-dvh flex-col bg-background text-foreground">
+            <StreamStats
+                unit="traces"
+                history={history}
+                arrived={stream.liveCount}
+                loaded={stream.traces.length}
+                rate={rate}
+            />
             <BuildSwitch active="optimized" />
             {/* Page title, search, date range and filter chips: all faithful to
                 their layout and all inert here, since this view tails one live
@@ -174,8 +191,6 @@ export default function OptimizedView() {
                 </div>
             </div>
             <FooterBar
-                pageSize={PAGE_SIZE}
-                rows={stream.traces.length}
                 rendered={items.length}
                 domNodes={metrics.domNodes}
                 commits={stream.commits}

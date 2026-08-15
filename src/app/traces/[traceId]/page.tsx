@@ -8,6 +8,7 @@ import { useViewMetrics } from "@/lib/useViewMetrics";
 import type { Trace } from "@/lib/types";
 import { SessionOptimized } from "@/components/nl/SessionOptimized";
 import { SessionNaive } from "@/components/nl/SessionNaive";
+import { StreamStats, useArrivalRate } from "@/components/nl/StreamStats";
 import { ChevronLeftIcon } from "@/components/nl/icons";
 
 type Build = "optimized" | "naive";
@@ -32,6 +33,10 @@ function SessionPage({ traceId }: { traceId: string }) {
     );
     const [stats, setStats] = useState({ loaded: 0, total: 0, mounted: 0 });
     const [tail, setTail] = useState({ kept: 0, discarded: 0, bytes: 0 });
+    const [header, setHeader] = useState<{ history: number | null; arrived: number; loaded: number }>(
+        { history: null, arrived: 0, loaded: 0 },
+    );
+    const rate = useArrivalRate(header.arrived);
     const metrics = useViewMetrics(build, build === "naive");
 
     useEffect(() => {
@@ -53,6 +58,10 @@ function SessionPage({ traceId }: { traceId: string }) {
     const onStats = useCallback((s: typeof stats) => {
         setStats((prev) =>
             prev.loaded === s.loaded && prev.total === s.total && prev.mounted === s.mounted ? prev : s);
+    }, []);
+    const onHeader = useCallback((h: typeof header) => {
+        setHeader((prev) =>
+            prev.history === h.history && prev.arrived === h.arrived && prev.loaded === h.loaded ? prev : h);
     }, []);
     const onTail = useCallback((t: typeof tail) => {
         setTail((prev) =>
@@ -114,6 +123,14 @@ function SessionPage({ traceId }: { traceId: string }) {
 
     return (
         <main className="flex h-dvh flex-col bg-background text-foreground">
+            <StreamStats
+                unit="turns"
+                history={header.history}
+                arrived={header.arrived}
+                loaded={header.loaded}
+                rate={rate}
+                note="one conversation"
+            />
             <div className="flex h-12 shrink-0 items-center gap-1 border-b border-border px-4">
                 {tab("optimized", "Virtualised", "list projection · spans on open")}
                 {tab("naive", "Unoptimised", "every turn · full documents")}
@@ -173,22 +190,21 @@ function SessionPage({ traceId }: { traceId: string }) {
                 )}
                 {!anchor && !error && <div className="p-6 text-[13px] text-muted-foreground">Loading session…</div>}
                 {anchor && build === "optimized" && (
-                    <SessionOptimized sessionId={anchor.sessionId} anchorId={anchor._id} onStats={onStats} onTail={onTail} />
+                    <SessionOptimized sessionId={anchor.sessionId} anchorId={anchor._id} onStats={onStats} onTail={onTail} onHeader={onHeader} />
                 )}
                 {anchor && build === "naive" && (
-                    <SessionNaive sessionId={anchor.sessionId} anchorId={anchor._id} onStats={onStats} onTail={onTail} />
+                    <SessionNaive sessionId={anchor.sessionId} anchorId={anchor._id} onStats={onStats} onTail={onTail} onHeader={onHeader} />
                 )}
             </div>
 
             <div className="flex h-12 shrink-0 items-center justify-end gap-5 overflow-x-auto border-t border-border px-6">
-                {([["turns loaded", `${stats.loaded}/${stats.total || "?"}`],
-                   ["turns mounted", stats.mounted],
-                   ["dom nodes", metrics.domNodes.toLocaleString()],
-                   ["fetched", `${(metrics.bytes / 1024).toFixed(0)} KB`],
+                {([["on screen", stats.mounted],
+                   ["page elements", metrics.domNodes.toLocaleString()],
+                   ["downloaded", `${(metrics.bytes / 1024).toFixed(0)} KB`],
                    ["requests", metrics.requests],
-                   ["live kept", tail.kept],
-                   ["live dropped", tail.discarded],
-                   ["socket", `${(tail.bytes / 1024).toFixed(0)} KB`]] as const).map(([k, v]) => (
+                   ["live used", tail.kept],
+                   ["live discarded", tail.discarded],
+                   ["over socket", `${(tail.bytes / 1024).toFixed(0)} KB`]] as const).map(([k, v]) => (
                     <span key={k} className="flex items-baseline gap-1.5 whitespace-nowrap">
                         <span className="text-2xs text-muted-foreground/70 uppercase">{k}</span>
                         <span className="font-mono text-xs tabular-nums text-foreground/85">{v}</span>
