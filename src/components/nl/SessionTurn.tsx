@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { Span, Trace } from "@/lib/types";
+import type { Span, TraceSummary } from "@/lib/types";
 import { ChevronDownIcon, ChevronRightIcon } from "./icons";
 
 /* Node-type glyphs, drawn in their 24×24 / 1.5-stroke idiom. */
@@ -97,23 +97,30 @@ function SpanField({ label, value, tone }: { label: string; value: string; tone?
     );
 }
 
-export function SessionTurn({ trace, highlighted, divider }: {
-    trace: Trace; highlighted: boolean; divider: boolean;
+/**
+ * One turn. Spans are optional: the optimised build renders from the list
+ * projection and asks for them only when a turn is opened, so a 900-turn
+ * session costs one page of summaries instead of 900 full documents.
+ */
+export function SessionTurn({
+    trace, spans, highlighted, divider, expanded, onToggle, loadingSpans,
+}: {
+    trace: TraceSummary;
+    spans?: Span[];
+    highlighted: boolean;
+    divider: boolean;
+    expanded: boolean;
+    onToggle: () => void;
+    loadingSpans?: boolean;
 }) {
-    const [collapsed, setCollapsed] = useState(false);
     const [expandAll, setExpandAll] = useState(false);
+    const roots = (spans ?? []).filter((s) => !s.parent_span_id);
 
-    const spans = trace.spans ?? [];
-    const root = spans.find((s) => !s.parent_span_id) ?? spans[0];
-    const roots = spans.filter((s) => !s.parent_span_id);
-
-    // Denormalised on the row now, same as theirs; the root span is the
-    // fallback for anything captured before that field existed.
-    const input = trace.input || root?.data.input_value || trace.name;
-    const output = trace.output || root?.data.output_value || "";
+    const input = trace.input || trace.name;
+    const output = trace.output || "";
 
     return (
-        <section id={`turn-${trace._id}`} className={divider ? "border-t border-border pt-10" : ""}>
+        <section id={`turn-${trace._id}`} className={divider ? "border-t border-border pt-8" : ""}>
             <div className="mb-3 flex flex-col items-end">
                 <span className="mb-1.5 text-2xs tracking-wide text-muted-foreground/70">INPUT</span>
                 <div className={`max-w-[70%] rounded-xl border px-4 py-2.5 text-[13px] text-foreground ${
@@ -125,28 +132,34 @@ export function SessionTurn({ trace, highlighted, divider }: {
 
             <div className="rounded-xl border border-border">
                 <div className="flex items-center gap-2 px-3.5 py-2.5">
-                    <button type="button" onClick={() => setCollapsed((c) => !c)}
-                        className="flex cursor-pointer items-center gap-2 text-muted-foreground">
-                        {collapsed ? <ChevronRightIcon className="size-4" /> : <ChevronDownIcon className="size-4" />}
+                    <button type="button" onClick={onToggle}
+                        className="flex cursor-pointer items-center gap-2 text-muted-foreground transition-colors hover:text-foreground">
+                        {expanded ? <ChevronDownIcon className="size-4" /> : <ChevronRightIcon className="size-4" />}
                         <span className="text-2xs tracking-wide">
-                            {spans.length} {spans.length === 1 ? "STEP" : "STEPS"} · {dur(trace.latency).toUpperCase()}
+                            {trace.spanCount} {trace.spanCount === 1 ? "STEP" : "STEPS"} · {dur(trace.latency).toUpperCase()}
                         </span>
                     </button>
-                    <button type="button" onClick={() => setExpandAll((e) => !e)}
-                        className="ml-auto cursor-pointer text-2xs tracking-wide text-muted-foreground transition-colors hover:text-foreground">
-                        {expandAll ? "COLLAPSE ALL" : "EXPAND ALL"}
-                    </button>
+                    {trace.status === "error" && (
+                        <span className="rounded bg-destructive/10 px-1.5 py-0.5 text-2xs text-destructive">error</span>
+                    )}
+                    {expanded && spans && (
+                        <button type="button" onClick={() => setExpandAll((e) => !e)}
+                            className="ml-auto cursor-pointer text-2xs tracking-wide text-muted-foreground transition-colors hover:text-foreground">
+                            {expandAll ? "COLLAPSE ALL" : "EXPAND ALL"}
+                        </button>
+                    )}
                 </div>
-                {!collapsed && (
+                {expanded && (
                     <div className="border-t border-border px-3.5 py-1.5">
-                        {roots.map((s) => (
+                        {loadingSpans && <div className="py-2 text-2xs text-muted-foreground">loading steps…</div>}
+                        {spans && roots.map((s) => (
                             <SpanNodeTree key={s.span_id} span={s} all={spans} depth={0} expandAll={expandAll} />
                         ))}
                     </div>
                 )}
             </div>
 
-            <div className="mt-5 mb-10">
+            <div className="mt-5 mb-8">
                 <div className="mb-1.5 text-2xs tracking-wide text-muted-foreground/70">OUTPUT</div>
                 <div className="text-[15px] text-foreground">{output || "—"}</div>
             </div>

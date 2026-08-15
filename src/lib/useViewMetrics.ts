@@ -19,7 +19,7 @@ export function useViewMetrics(view: "naive" | "optimized", withFps = false) {
         if (withFps) raf = requestAnimationFrame(loop);
 
         const t = setInterval(() => {
-            const root = document.querySelector("[data-list-root]");
+            const root = document.querySelector("[data-list-root]") ?? document.querySelector("[data-session-root]");
             setM({
                 domNodes: root ? root.getElementsByTagName("*").length : 0,
                 bytes: stats[view].bytes,

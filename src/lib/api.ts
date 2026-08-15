@@ -1,4 +1,4 @@
-import type { HistoryResponse, Trace } from "./types";
+import type { HistoryResponse, SessionPage, SessionSummary, Trace } from "./types";
 
 export const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "https://onnboard.com";
 export const WS_URL = `${API_BASE.replace(/^http/, "ws")}/api/stream`;
@@ -49,26 +49,28 @@ export function fetchTrace(traceId: string, view?: "naive" | "optimized"): Promi
     return measured(view ?? null, `${API_BASE}/api/traces/${traceId}`);
 }
 
-/**
- * Their detail route opens the whole session a trace belongs to, not the trace
- * alone. Our backend has no sessionId filter, but turns land as one contiguous
- * run of ids, so a window around the anchor covers the session; the window is
- * deliberately wider than the longest run we generate.
- */
-export async function fetchSession(traceId: string, view?: "naive" | "optimized"): Promise<{
-    anchor: Trace;
-    turns: Trace[];
-}> {
-    const anchor = await fetchTrace(traceId, view);
-    const window = await fetchHistory({
-        before: anchor.id + 16, limit: 32, projection: "list", view,
-    });
-    const inSession = window.logs
-        .filter((l) => l.sessionId === anchor.sessionId)
-        .sort((a, b) => a.id - b.id);
+/** Sessions ranked by turn count — how the demo finds one worth opening. */
+export function fetchSessionList(limit = 20, view?: "naive" | "optimized"):
+Promise<{ sessions: SessionSummary[]; total: number }> {
+    return measured(view ?? null, `${API_BASE}/api/sessions?limit=${limit}`);
+}
 
-    const turns = await Promise.all(
-        inSession.map((l) => (l._id === anchor._id ? Promise.resolve(anchor) : fetchTrace(l._id, view))),
-    );
-    return { anchor, turns: turns.length > 0 ? turns : [anchor] };
+/**
+ * One page of a session's turns. Turn ids interleave with every other session
+ * in the stream, so a session can only be read through this endpoint — the
+ * window-around-the-anchor trick this used to do cannot work any more.
+ */
+export function fetchSessionPage(sessionId: string, options: {
+    after?: number;
+    before?: number;
+    limit?: number;
+    projection?: "session" | "list";
+    view?: "naive" | "optimized";
+} = {}): Promise<SessionPage> {
+    const q = new URLSearchParams();
+    if (options.after !== undefined) q.set("after", String(options.after));
+    if (options.before !== undefined) q.set("before", String(options.before));
+    q.set("limit", String(options.limit ?? 50));
+    if (options.projection) q.set("projection", options.projection);
+    return measured(options.view ?? null, `${API_BASE}/api/sessions/${sessionId}?${q}`);
 }

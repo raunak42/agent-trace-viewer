@@ -73,3 +73,17 @@ export interface HistoryResponse {
 export type ServerMessage =
     | { type: "connected"; lastLogId: number; bootId: string }
     | { type: "log"; data: Trace };
+
+/** One page of a session's turns. */
+export interface SessionPage {
+    logs: TraceSummary[];
+    total: number;
+    nextCursor: number | null;
+    hasMore: boolean;
+}
+
+export interface SessionSummary {
+    sessionId: string;
+    turns: number;
+    lastId: number;
+}
