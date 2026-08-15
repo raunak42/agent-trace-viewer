@@ -6,7 +6,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { useTraceStream } from "@/lib/useTraceStream";
 import { useViewMetrics, buildHistogram } from "@/lib/useViewMetrics";
 import { TableHeader, TraceRow, ROW_HEIGHT } from "@/components/nl/TraceTable";
-import { TopBar, FilterBar, Histogram, FooterBar, BuildSwitch } from "@/components/nl/Chrome";
+import { TopBar, FilterBar, FooterBar, BuildSwitch } from "@/components/nl/Chrome";
 import { NewArrivalsPill } from "@/components/NewArrivalsPill";
 
 const PAGE_SIZE = 50;
@@ -125,7 +125,12 @@ export default function OptimizedView() {
             <BuildSwitch active="optimized" />
             <TopBar range={hist.range} />
             <FilterBar />
-            <Histogram buckets={hist.buckets} labels={hist.labels} />
+            {/* Volume-over-time chart, commented out rather than removed.
+                The loaded window is only ever a page or two of rows — fifteen
+                seconds at five a second — so every bucket lands in the same
+                minute and all seven axis labels read identically. It would
+                only mean something over a window of hours.
+            <Histogram buckets={hist.buckets} labels={hist.labels} /> */}
             <div className="flex min-h-0 flex-1 border-t border-border">
                 <div className="relative flex min-w-0 flex-1 flex-col">
                     <TableHeader />
