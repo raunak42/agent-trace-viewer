@@ -12,6 +12,9 @@ import { ChevronDownIcon, ChevronLeftIcon, SlidersIcon } from "@/components/nl/i
 
 type Build = "optimized" | "naive";
 
+/** capacity ÷ ingest rate, i.e. how long a trace stays resolvable. */
+const RETENTION_HOURS = Math.round(140_000 / 5 / 3600);
+
 /**
  * Their row click is a route, not a panel: /traces/{traceId} opens the whole
  * session the trace belongs to, rendered as a transcript of turns. This serves
@@ -154,7 +157,25 @@ function SessionPage({ traceId }: { traceId: string }) {
             </header>
 
             <div className="min-h-0 flex-1">
-                {error && <div className="p-6 text-[13px] text-destructive">{error}</div>}
+                {error && (
+                    <div className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
+                        <div className="text-[15px] text-foreground">This trace is no longer in the buffer</div>
+                        <div className="max-w-[440px] text-[13px] text-muted-foreground">
+                            The stream keeps a rolling window — about {RETENTION_HOURS} hours at the current
+                            rate — and drops the oldest trace for each new one. A restart clears it entirely.
+                            The link was valid; the data behind it has aged out.
+                        </div>
+                        <button
+                            type="button"
+                            onClick={() => void jumpToLiveSession()}
+                            disabled={jumping}
+                            className="mt-1 cursor-pointer rounded-lg border border-border px-3.5 py-2 text-[13px] text-foreground transition-colors hover:bg-muted disabled:opacity-50"
+                        >
+                            {jumping ? "finding…" : "Open an active session"}
+                        </button>
+                        <code className="mt-1 font-mono text-2xs text-muted-foreground/50">{traceId}</code>
+                    </div>
+                )}
                 {!anchor && !error && <div className="p-6 text-[13px] text-muted-foreground">Loading session…</div>}
                 {anchor && build === "optimized" && (
                     <SessionOptimized sessionId={anchor.sessionId} anchorId={anchor._id} onStats={onStats} onTail={onTail} />
