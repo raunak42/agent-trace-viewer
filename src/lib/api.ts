@@ -48,3 +48,27 @@ export function fetchHistory(options: {
 export function fetchTrace(traceId: string, view?: "naive" | "optimized"): Promise<Trace> {
     return measured(view ?? null, `${API_BASE}/api/traces/${traceId}`);
 }
+
+/**
+ * Their detail route opens the whole session a trace belongs to, not the trace
+ * alone. Our backend has no sessionId filter, but turns land as one contiguous
+ * run of ids, so a window around the anchor covers the session; the window is
+ * deliberately wider than the longest run we generate.
+ */
+export async function fetchSession(traceId: string, view?: "naive" | "optimized"): Promise<{
+    anchor: Trace;
+    turns: Trace[];
+}> {
+    const anchor = await fetchTrace(traceId, view);
+    const window = await fetchHistory({
+        before: anchor.id + 16, limit: 32, projection: "list", view,
+    });
+    const inSession = window.logs
+        .filter((l) => l.sessionId === anchor.sessionId)
+        .sort((a, b) => a.id - b.id);
+
+    const turns = await Promise.all(
+        inSession.map((l) => (l._id === anchor._id ? Promise.resolve(anchor) : fetchTrace(l._id, view))),
+    );
+    return { anchor, turns: turns.length > 0 ? turns : [anchor] };
+}

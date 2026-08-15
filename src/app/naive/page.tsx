@@ -1,12 +1,11 @@
 "use client";
 
 import { useLayoutEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useTraceStream } from "@/lib/useTraceStream";
 import { useViewMetrics, buildHistogram } from "@/lib/useViewMetrics";
-import type { TraceSummary } from "@/lib/types";
 import { TableHeader, TraceRow, ROW_HEIGHT } from "@/components/nl/TraceTable";
 import { TopBar, FilterBar, Histogram, FooterBar, BuildSwitch } from "@/components/nl/Chrome";
-import { TraceDetail } from "@/components/TraceDetail";
 
 const PAGE_SIZE = 50;
 
@@ -23,7 +22,7 @@ const PAGE_SIZE = 50;
 export default function NaiveView() {
     const stream = useTraceStream({ projection: "session", batchMs: 0, view: "naive", pageSize: PAGE_SIZE });
     const metrics = useViewMetrics("naive", true);
-    const [selected, setSelected] = useState<TraceSummary | null>(null);
+    const router = useRouter();
     const scrollRef = useRef<HTMLDivElement>(null);
 
     useLayoutEffect(() => {
@@ -70,13 +69,11 @@ export default function NaiveView() {
                             <TraceRow
                                 key={trace.id}
                                 trace={trace}
-                                selected={selected?.id === trace.id}
-                                onOpen={setSelected}
+                                onOpen={(t) => router.push(`/traces/${t._id}`)}
                             />
                         ))}
                     </div>
                 </div>
-                <TraceDetail summary={selected} view="naive" onClose={() => setSelected(null)} />
             </div>
             <FooterBar
                 pageSize={PAGE_SIZE}

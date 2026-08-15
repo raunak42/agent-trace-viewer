@@ -2,12 +2,11 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { useRouter } from "next/navigation";
 import { useTraceStream } from "@/lib/useTraceStream";
 import { useViewMetrics, buildHistogram } from "@/lib/useViewMetrics";
-import type { TraceSummary } from "@/lib/types";
 import { TableHeader, TraceRow, ROW_HEIGHT } from "@/components/nl/TraceTable";
 import { TopBar, FilterBar, Histogram, FooterBar, BuildSwitch } from "@/components/nl/Chrome";
-import { TraceDetail } from "@/components/TraceDetail";
 import { NewArrivalsPill } from "@/components/NewArrivalsPill";
 
 const PAGE_SIZE = 50;
@@ -15,7 +14,7 @@ const PAGE_SIZE = 50;
 export default function OptimizedView() {
     const stream = useTraceStream({ projection: "list", batchMs: 150, view: "optimized", pageSize: PAGE_SIZE });
     const metrics = useViewMetrics("optimized");
-    const [selected, setSelected] = useState<TraceSummary | null>(null);
+    const router = useRouter();
     const [newCount, setNewCount] = useState(0);
 
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -130,8 +129,7 @@ export default function OptimizedView() {
                                     >
                                         <TraceRow
                                             trace={trace}
-                                            selected={selected?.id === trace.id}
-                                            onOpen={setSelected}
+                                            onOpen={(t) => router.push(`/traces/${t._id}`)}
                                         />
                                     </div>
                                 );
@@ -152,7 +150,6 @@ export default function OptimizedView() {
                     )}
                     <NewArrivalsPill count={newCount} onClick={jumpToBottom} />
                 </div>
-                <TraceDetail summary={selected} view="optimized" onClose={() => setSelected(null)} />
             </div>
             <FooterBar
                 pageSize={PAGE_SIZE}

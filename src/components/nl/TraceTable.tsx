@@ -31,7 +31,7 @@ export const COLUMNS: Column[] = [
     { id: "ingestedAt", label: "Ingested at", width: 140 },
     { id: "replay", label: "Replay", width: 112, align: "center" },
     { id: "status", label: "Status", width: 90, align: "center" },
-    { id: "name", label: "Input", width: 300, grow: true },
+    { id: "name", label: "Name", width: 300, grow: true },
     { id: "workflow", label: "Workflow", width: 140 },
     { id: "spans", label: "Spans", width: 90 },
     { id: "tokens", label: "Tokens", width: 120 },
