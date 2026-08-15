@@ -82,6 +82,7 @@ export default function NaiveView() {
         <main className="flex h-dvh flex-col bg-background text-foreground">
             <StreamStats
                 unit="traces"
+                totalLabel="total logs"
                 history={history}
                 arrived={stream.liveCount}
                 loaded={stream.traces.length}

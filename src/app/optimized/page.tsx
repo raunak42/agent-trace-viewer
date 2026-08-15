@@ -130,6 +130,7 @@ export default function OptimizedView() {
         <main className="flex h-dvh flex-col bg-background text-foreground">
             <StreamStats
                 unit="traces"
+                totalLabel="total logs"
                 history={history}
                 arrived={stream.liveCount}
                 loaded={stream.traces.length}

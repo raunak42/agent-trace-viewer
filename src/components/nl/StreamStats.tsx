@@ -41,7 +41,7 @@ const fmt = (n: number) => n.toLocaleString();
  * from that first fetch. The snapshot was a detail of when the page loaded, and
  * showing it alongside the running total gave two numbers for one question.
  */
-export function StreamStats({ unit, history, arrived, loaded, rate, connection, note }: {
+export function StreamStats({ unit, history, arrived, loaded, rate, totalLabel, connection, note }: {
     /** "traces" or "turns" — what one item is on this page. */
     unit: string;
     /** How many existed server-side when this page first fetched. Added to
@@ -52,6 +52,9 @@ export function StreamStats({ unit, history, arrived, loaded, rate, connection, 
     /** How many this page has actually pulled down. */
     loaded: number;
     rate: number;
+    /** What to call the running total. Defaults to the unit, since "logs" reads
+     *  oddly for the turns of one conversation. */
+    totalLabel?: string;
     /** Socket state. Omitted where the page already reports liveness of its
      *  own — the transcript's session pill says whether that thread is still
      *  receiving, which is a narrower claim than the connection being up. */
@@ -72,7 +75,7 @@ export function StreamStats({ unit, history, arrived, loaded, rate, connection, 
 
     return (
         <div className="flex shrink-0 items-center gap-0 overflow-x-auto border-b border-border py-3">
-            {cell("in history", total === null ? "…" : fmt(total), `${unit} that exist`, true)}
+            {cell(totalLabel ?? `total ${unit}`, total === null ? "…" : fmt(total), "history + new arrivals", true)}
             <span className="h-9 w-px shrink-0 bg-border" />
             {cell("arriving", `${rate.toFixed(1)}/s`, `new ${unit} per second`)}
             <span className="h-9 w-px shrink-0 bg-border" />
