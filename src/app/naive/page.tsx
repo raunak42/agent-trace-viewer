@@ -1,10 +1,11 @@
 "use client";
 
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTraceStream } from "@/lib/useTraceStream";
 import { useViewMetrics } from "@/lib/useViewMetrics";
 import { TableHeader, TraceRow, ROW_HEIGHT } from "@/components/nl/TraceTable";
+import { NewArrivalsPill } from "@/components/NewArrivalsPill";
 import { FooterBar, BuildSwitch } from "@/components/nl/Chrome";
 
 const PAGE_SIZE = 50;
@@ -24,15 +25,44 @@ export default function NaiveView() {
     const metrics = useViewMetrics("naive", true);
     const router = useRouter();
     const scrollRef = useRef<HTMLDivElement>(null);
+    const atTop = useRef(true);
+    const [newCount, setNewCount] = useState(0);
+
+    // Following and the arrivals count behave exactly as in the other build.
+    // Neither is an optimisation: this list still mounts every row it has, still
+    // pulls full documents, and still commits once per message. What changes is
+    // only that it no longer drags the reader back to the top mid-sentence.
+    useEffect(() => {
+        const root = scrollRef.current;
+        if (!root) return;
+        const sync = () => {
+            const following = root.scrollTop <= 0;
+            atTop.current = following;
+            if (following) setNewCount(0);
+        };
+        root.addEventListener("scroll", sync, { passive: true });
+        return () => root.removeEventListener("scroll", sync);
+    }, []);
 
     useLayoutEffect(() => {
         const el = scrollRef.current;
-        if (!el) return;
-        // The anti-pattern, inverted along with the list: any new row snaps the
-        // viewport back to the newest, wherever the reader happened to be.
-        if (stream.delta.addedAtTop > 0) el.scrollTop = 0;
+        if (!el || stream.delta.addedAtTop <= 0) return;
+        if (atTop.current) {
+            el.scrollTop = 0;
+            setNewCount(0);
+        } else {
+            el.scrollTop += stream.delta.addedAtTop * ROW_HEIGHT;
+            setNewCount((n) => n + stream.delta.addedAtTop);
+        }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [stream.delta.seq]);
+
+    const jumpToNewest = () => {
+        const el = scrollRef.current;
+        if (el) el.scrollTop = 0;
+        setNewCount(0);
+        atTop.current = true;
+    };
 
     // Unthrottled: runs on every scroll event. Older rows are at the bottom now.
     const onScroll = () => {
@@ -77,6 +107,7 @@ export default function NaiveView() {
                             />
                         ))}
                     </div>
+                    <NewArrivalsPill count={newCount} onClick={jumpToNewest} />
                 </div>
             </div>
             <FooterBar

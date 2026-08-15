@@ -35,6 +35,8 @@ export function SessionOptimized({ sessionId, anchorId, onStats, onTail }: {
     const [pending, setPending] = useState<Record<string, boolean>>({});
     const [open, setOpen] = useState<Record<string, boolean>>({});
     const [newCount, setNewCount] = useState(0);
+    /** Mirrors newCount so handlers can tell whether a reset is a no-op. */
+    const counted = useRef(0);
 
     const scrollRef = useRef<HTMLDivElement>(null);
     const topSentinel = useRef<HTMLDivElement>(null);
@@ -120,17 +122,15 @@ export function SessionOptimized({ sessionId, anchorId, onStats, onTail }: {
 
     // Live turns belong at the bottom, but only once the bottom is actually
     // loaded — otherwise they would sit next to turns they do not follow.
-    const tail = useSessionTail({
-        sessionId,
-        filtered: true,
-        onTurn: (turn) => {
-            if (moreNewer.current) return;
-            if (addTurns([turn], "newer") === 0) return;
-            newest.current = turn.id;
-            setTotal((n) => n + 1);
-            if (!atBottom.current) setNewCount((n) => n + 1);
-        },
-    });
+    const handleTurn = useCallback((turn: TraceSummary) => {
+        if (moreNewer.current) return;
+        if (addTurns([turn], "newer") === 0) return;
+        newest.current = turn.id;
+        setTotal((n) => n + 1);
+        if (!atBottom.current) { counted.current += 1; setNewCount(counted.current); }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+    const tail = useSessionTail({ sessionId, filtered: true, onTurn: handleTurn });
     useEffect(() => { onTail(tail); }, [tail, onTail]);
 
     const virtualizer = useVirtualizer({
@@ -164,17 +164,25 @@ export function SessionOptimized({ sessionId, anchorId, onStats, onTail }: {
     // Open on the latest turn and stay there while the reader is at the end.
     // scrollTop is written directly rather than through scrollToIndex: that
     // path triggers a synchronous measurement flush, which React rejects from
-    // inside a lifecycle. Re-runs as sizes settle so estimates cannot leave it
-    // a few hundred pixels short of the true bottom.
+    // inside a lifecycle. Re-runs as sizes settle, since an estimate can leave
+    // it short of the true bottom.
+    //
+    // The write is skipped when already at the target. This effect fires on
+    // every change to the virtualiser's total size, and that size keeps moving
+    // as rows are measured — so writing unconditionally raises a scroll event,
+    // which shifts the visible range, which measures more rows, which changes
+    // the size again. Writing only when the position is actually wrong ends
+    // that cycle after one pass.
     useLayoutEffect(() => {
         const el = scrollRef.current;
         if (!el || turns.length === 0) return;
+        const target = el.scrollHeight - el.clientHeight;
         if (!didLand.current) {
             didLand.current = true;
-            el.scrollTop = el.scrollHeight;
+            el.scrollTop = target;
             return;
         }
-        if (atBottom.current) el.scrollTop = el.scrollHeight;
+        if (atBottom.current && Math.abs(el.scrollTop - target) > 1) el.scrollTop = target;
     }, [turns.length, totalSize]);
 
     useEffect(() => {
@@ -187,7 +195,9 @@ export function SessionOptimized({ sessionId, anchorId, onStats, onTail }: {
         // scrolled, rather than after 600px of tolerance.
         const bottom = new IntersectionObserver(([e]) => {
             atBottom.current = e?.isIntersecting ?? false;
-            if (atBottom.current) { setNewCount(0); void loadNewer(); }
+            if (!atBottom.current) return;
+            if (counted.current !== 0) { counted.current = 0; setNewCount(0); }
+            void loadNewer();
         }, { root });
         if (topSentinel.current) top.observe(topSentinel.current);
         if (bottomSentinel.current) bottom.observe(bottomSentinel.current);
@@ -205,7 +215,9 @@ export function SessionOptimized({ sessionId, anchorId, onStats, onTail }: {
         const sync = () => {
             const following = root.scrollHeight - root.clientHeight - root.scrollTop <= 4;
             atBottom.current = following;
-            if (following) setNewCount(0);
+            // Only when it would change something: pinning writes scrollTop,
+            // which raises a scroll event, which lands back here.
+            if (following && counted.current !== 0) { counted.current = 0; setNewCount(0); }
         };
         root.addEventListener("scroll", sync, { passive: true });
         return () => root.removeEventListener("scroll", sync);
@@ -234,6 +246,7 @@ export function SessionOptimized({ sessionId, anchorId, onStats, onTail }: {
     const jumpToLatest = () => {
         const el = scrollRef.current;
         if (el) el.scrollTop = el.scrollHeight;
+        counted.current = 0;
         setNewCount(0);
         atBottom.current = true;
     };

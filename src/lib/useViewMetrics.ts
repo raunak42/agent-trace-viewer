@@ -20,12 +20,20 @@ export function useViewMetrics(view: "naive" | "optimized", withFps = false) {
 
         const t = setInterval(() => {
             const root = document.querySelector("[data-list-root]") ?? document.querySelector("[data-session-root]");
-            setM({
+            const next = {
                 domNodes: root ? root.getElementsByTagName("*").length : 0,
                 bytes: stats[view].bytes,
                 requests: stats[view].requests,
                 fps,
-            });
+            };
+            // Publishing a fresh object every tick re-renders the page whether
+            // or not anything moved. On a view holding hundreds of thousands of
+            // nodes that render is expensive enough that the updates stack up,
+            // and React refuses the chain.
+            setM((prev) =>
+                prev.domNodes === next.domNodes && prev.bytes === next.bytes
+                    && prev.requests === next.requests && prev.fps === next.fps
+                    ? prev : next);
         }, 1000);
 
         return () => { clearInterval(t); if (raf) cancelAnimationFrame(raf); };

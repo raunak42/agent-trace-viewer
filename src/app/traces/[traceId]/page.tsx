@@ -45,8 +45,19 @@ function SessionPage({ traceId }: { traceId: string }) {
     const anchor = loaded.id === traceId ? loaded.anchor : null;
     const error = loaded.id === traceId ? loaded.error : null;
 
-    const onStats = useCallback((s: typeof stats) => setStats(s), []);
-    const onTail = useCallback((t: typeof tail) => setTail(t), []);
+    // Both children report by value, so a fresh object arrives on every call
+    // even when nothing has moved. Storing it unconditionally re-renders the
+    // page, which re-renders the child, which recomputes how many rows are
+    // mounted, which reports again — a loop React eventually refuses. Keeping
+    // the previous object when the numbers match breaks it.
+    const onStats = useCallback((s: typeof stats) => {
+        setStats((prev) =>
+            prev.loaded === s.loaded && prev.total === s.total && prev.mounted === s.mounted ? prev : s);
+    }, []);
+    const onTail = useCallback((t: typeof tail) => {
+        setTail((prev) =>
+            prev.kept === t.kept && prev.discarded === t.discarded && prev.bytes === t.bytes ? prev : t);
+    }, []);
 
     // A thread that has finished simply stops, which is indistinguishable from
     // a broken page unless the view says which it is.

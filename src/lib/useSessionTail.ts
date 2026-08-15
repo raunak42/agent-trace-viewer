@@ -28,10 +28,11 @@ export function useSessionTail(options: {
     const { sessionId, filtered } = options;
     const [stats, setStats] = useState<TailStats>({ kept: 0, discarded: 0, bytes: 0 });
 
-    // Held in a ref so a changing callback never tears the socket down. Synced
-    // in an effect rather than during render, which is not allowed for refs.
+    // Held in a ref so a changing callback never tears the socket down. Callers
+    // pass a memoised function, so this syncs on change rather than on every
+    // render.
     const onTurn = useRef(options.onTurn);
-    useEffect(() => { onTurn.current = options.onTurn; });
+    useEffect(() => { onTurn.current = options.onTurn; }, [options.onTurn]);
 
     useEffect(() => {
         if (!sessionId) return;
@@ -63,7 +64,6 @@ export function useSessionTail(options: {
                 } else {
                     tally.discarded += 1;
                 }
-                setStats({ ...tally });
             };
 
             ws.onclose = () => {
@@ -85,10 +85,25 @@ export function useSessionTail(options: {
             connect();
         }, 15_000);
 
+        // The message handler only mutates the tally; nothing on the hot path
+        // sets state. These are display counters, not data, so they are
+        // published on a timer instead — and only when a number actually moved,
+        // since a fresh object every second would re-render the view regardless.
+        // At five messages a second against a view holding every turn, keeping
+        // state updates off the socket handler is the difference between a
+        // steady render and a queue React eventually refuses.
+        const flush = setInterval(() => {
+            setStats((prev) =>
+                prev.kept === tally.kept && prev.discarded === tally.discarded
+                    && prev.bytes === tally.bytes
+                    ? prev : { ...tally });
+        }, 1000);
+
         return () => {
             closedByUs = true;
             if (retry) clearTimeout(retry);
             clearInterval(watchdog);
+            clearInterval(flush);
             socket?.close();
         };
     }, [sessionId, filtered]);
