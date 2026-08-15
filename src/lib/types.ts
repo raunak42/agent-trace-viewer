@@ -88,4 +88,13 @@ export interface SessionSummary {
     lastId: number;
     /** Still receiving turns, rather than a finished thread. */
     live: boolean;
+    workflowName: string;
+    /** The opening turn's input, and the latest turn's output. */
+    input: string;
+    output: string;
+    startedAt: number;
+    lastAt: number;
+    errors: number;
+    /** Hex id of the latest turn, so the transcript opens directly. */
+    lastTraceId: string;
 }
