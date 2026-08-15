@@ -3,12 +3,14 @@
 import { useEffect, useState } from "react";
 import { fetchTrace } from "@/lib/api";
 import type { Trace, TraceSummary } from "@/lib/types";
+import { CloseIcon, StatusSuccessIcon, StatusErrorIcon } from "./nl/icons";
 
+/** Span-kind chips, tinted from their chart ramp rather than raw Tailwind hues. */
 const KIND = {
-    agent_action: "text-violet-300 bg-violet-500/10",
-    chain: "text-sky-300 bg-sky-500/10",
-    tool_call: "text-amber-300 bg-amber-500/10",
-    retrieval: "text-teal-300 bg-teal-500/10",
+    agent_action: "bg-[#514b8c]/10 text-[#514b8c]",
+    chain: "bg-sky-600/10 text-sky-700",
+    tool_call: "bg-amber-600/10 text-amber-700",
+    retrieval: "bg-teal-600/10 text-teal-700",
 } as const;
 
 /** Spans are fetched here, on open — never as part of the list payload. */
@@ -41,16 +43,16 @@ export function TraceDetail({ summary, view, onClose }: {
     }
     const render = (parent: string | undefined, depth: number): React.ReactNode =>
         (byParent.get(parent) ?? []).map((s) => (
-            <div key={s.span_id} style={{ marginLeft: depth * 16 }} className="border-l border-white/10 pl-3 py-1.5">
+            <div key={s.span_id} style={{ marginLeft: depth * 14 }} className="border-l border-border py-1.5 pl-3">
                 <div className="flex items-center gap-2">
-                    <span className={`rounded px-1.5 py-0.5 text-[10px] ${KIND[s.node_type]}`}>{s.node_type}</span>
-                    <span className="truncate text-xs text-white/80">{s.node_name}</span>
-                    <span className="ml-auto shrink-0 font-mono text-[10px] text-white/40">
+                    <span className={`rounded px-1.5 py-0.5 text-2xs font-medium ${KIND[s.node_type]}`}>{s.node_type}</span>
+                    <span className="truncate text-xs text-foreground/85">{s.node_name}</span>
+                    <span className="ml-auto shrink-0 font-mono text-2xs tabular-nums text-muted-foreground/70">
                         {s.data.duration_ms.toFixed(0)}ms
                     </span>
                 </div>
                 {s.data.output_value && (
-                    <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap rounded bg-black/40 p-2 font-mono text-[10px] leading-relaxed text-white/50">
+                    <pre className="mt-1 max-h-32 overflow-auto rounded-md border border-border bg-surface-subtle p-2 font-mono text-2xs leading-relaxed whitespace-pre-wrap text-muted-foreground">
                         {s.data.output_value.slice(0, 600)}
                         {s.output_truncated ? "\n… truncated by the server" : ""}
                     </pre>
@@ -60,26 +62,40 @@ export function TraceDetail({ summary, view, onClose }: {
         ));
 
     return (
-        <aside className="flex w-[440px] shrink-0 flex-col border-l border-white/10 bg-[#0d1117]">
-            <header className="flex items-center justify-between border-b border-white/10 px-4 py-3">
-                <div className="min-w-0">
-                    <div className="truncate text-sm text-white/90">{summary.name}</div>
-                    <div className="font-mono text-[10px] text-white/35">#{summary.id} · {summary._id.slice(0, 16)}…</div>
-                </div>
-                <button onClick={onClose} className="rounded px-2 py-1 text-white/40 hover:bg-white/10 hover:text-white/80">✕</button>
-            </header>
-            <div className="grid grid-cols-3 gap-px border-b border-white/10 bg-white/5 text-center">
-                {[["latency", `${summary.latency}ms`], ["tokens", summary.totalTokensUsed.toLocaleString()], ["cost", `$${summary.totalTokensCost.toFixed(4)}`]]
-                    .map(([k, v]) => (
-                        <div key={k} className="bg-[#0d1117] px-2 py-2">
-                            <div className="text-[10px] uppercase text-white/35">{k}</div>
-                            <div className="font-mono text-xs text-white/80">{v}</div>
+        <aside className="flex w-[440px] shrink-0 flex-col border-l border-border bg-background">
+            <header className="flex items-center justify-between gap-2 border-b border-border px-4 py-3">
+                <div className="flex min-w-0 items-center gap-2">
+                    {summary.status === "success"
+                        ? <StatusSuccessIcon className="size-4 shrink-0 text-success" />
+                        : <StatusErrorIcon className="size-4 shrink-0 text-destructive" />}
+                    <div className="min-w-0">
+                        <div className="truncate text-[13px] text-foreground">{summary.name}</div>
+                        <div className="truncate font-mono text-2xs text-muted-foreground/70">
+                            #{summary.id} · {summary._id.slice(0, 16)}…
                         </div>
-                    ))}
+                    </div>
+                </div>
+                <button
+                    onClick={onClose}
+                    aria-label="Close"
+                    className="flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                >
+                    <CloseIcon className="size-4" />
+                </button>
+            </header>
+            <div className="grid grid-cols-3 border-b border-border">
+                {([["latency", `${summary.latency}ms`],
+                   ["tokens", summary.totalTokensUsed.toLocaleString()],
+                   ["cost", `$${summary.totalTokensCost.toFixed(4)}`]] as const).map(([k, v]) => (
+                    <div key={k} className="border-r border-border px-3 py-2 last:border-r-0">
+                        <div className="text-2xs uppercase text-muted-foreground/70">{k}</div>
+                        <div className="font-mono text-xs tabular-nums text-foreground/85">{v}</div>
+                    </div>
+                ))}
             </div>
-            <div className="flex-1 overflow-auto p-3">
-                {error && <div className="text-xs text-rose-300">{error}</div>}
-                {!trace && !error && <div className="text-xs text-white/40">Fetching spans…</div>}
+            <div className="nl-scroll flex-1 overflow-auto p-3">
+                {error && <div className="text-xs text-destructive">{error}</div>}
+                {!trace && !error && <div className="text-xs text-muted-foreground">Fetching spans…</div>}
                 {trace && render(undefined, 0)}
             </div>
         </aside>

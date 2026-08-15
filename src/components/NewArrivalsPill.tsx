@@ -1,13 +1,16 @@
 "use client";
 
+import { ChevronDownIcon } from "./nl/icons";
+
 export function NewArrivalsPill({ count, onClick }: { count: number; onClick: () => void }) {
     if (count <= 0) return null;
     return (
         <button
             onClick={onClick}
-            className="absolute bottom-5 left-1/2 z-10 -translate-x-1/2 rounded-full bg-violet-600 px-4 py-1.5 text-xs font-medium text-white shadow-lg shadow-violet-900/40 transition hover:bg-violet-500"
+            className="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 cursor-pointer items-center gap-1.5 rounded-full bg-primary px-3.5 py-1.5 text-xs font-medium text-primary-foreground shadow-md transition-colors hover:bg-primary/90"
         >
-            ↓ {count} new
+            <ChevronDownIcon className="size-3.5" />
+            {count.toLocaleString()} new
         </button>
     );
 }

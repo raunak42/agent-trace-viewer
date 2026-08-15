@@ -1,26 +1,83 @@
 @import "tailwindcss";
 
+/*
+ * Tokens lifted from app.neatlogs.com by reading computed styles off the live
+ * page and resolving every lab()/oklab() value to sRGB. Their stack is
+ * shadcn/ui on Tailwind v4 with the zinc ramp and a custom near-black primary.
+ */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+    --background: #ffffff;
+    --foreground: #09090b;
+    --card: #ffffff;
+    --muted: #f4f4f5;
+    --muted-foreground: #494953;
+    --secondary-foreground: #18181b;
+    --border: #e4e4e7;
+    --border-soft: rgb(228 228 232 / 0.6);
+    --surface-subtle: #fafafa;
+    --primary: #323137;
+    --primary-foreground: #f5f3ff;
+    --destructive: #e7000b;
+    --success: #008235;
+    --ring: #323137;
+    --radius: 0.5rem;
+
+    --chart-1: #514b8c;
+    --chart-grid: #e7e7ec;
+    --chart-foreground-muted: #6d727a;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+    --color-background: var(--background);
+    --color-foreground: var(--foreground);
+    --color-card: var(--card);
+    --color-muted: var(--muted);
+    --color-muted-foreground: var(--muted-foreground);
+    --color-secondary-foreground: var(--secondary-foreground);
+    --color-border: var(--border);
+    --color-border-soft: var(--border-soft);
+    --color-surface-subtle: var(--surface-subtle);
+    --color-primary: var(--primary);
+    --color-primary-foreground: var(--primary-foreground);
+    --color-destructive: var(--destructive);
+    --color-success: var(--success);
+    --color-chart-1: var(--chart-1);
+    --color-chart-grid: var(--chart-grid);
+
+    --font-sans: var(--font-instrument-sans);
+    --font-mono: var(--font-geist-mono);
+
+    /* Their scale bottoms out below Tailwind's default `text-xs`. */
+    --text-2xs: 11px;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
+html { height: 100%; }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+    height: 100%;
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+    font-size: 13px;
+    line-height: 20px;
 }
+
+/* Rows fade in as pages resolve — 300ms ease-out, matching their table. */
+@keyframes rowFadeIn {
+    from { opacity: 0; transform: translateY(-2px); }
+    to   { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+    .row-fade {
+        animation: rowFadeIn 300ms ease-out backwards;
+    }
+}
+
+/* The list is the only thing that scrolls; the chrome around it is fixed. */
+.nl-scroll::-webkit-scrollbar { width: 10px; height: 10px; }
+.nl-scroll::-webkit-scrollbar-thumb {
+    background: #d4d4d8; border-radius: 9999px; border: 3px solid var(--background);
+}
+.nl-scroll::-webkit-scrollbar-thumb:hover { background: #b4b4bb; }
+.nl-scroll::-webkit-scrollbar-track { background: transparent; }
