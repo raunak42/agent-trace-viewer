@@ -33,14 +33,19 @@ export function useArrivalRate(total: number): number {
 const fmt = (n: number) => n.toLocaleString();
 
 /**
- * The four numbers that describe what is being watched, in the words someone
- * would use to ask: how much was already there, how fast is more arriving, how
- * much has this page actually pulled down, and what does that add up to now.
+ * Three numbers, each answering a different question: how much exists, how fast
+ * more is arriving, and how much of it this page has actually pulled down.
+ *
+ * History is reported live — what the server held when this page first fetched,
+ * plus everything that has arrived since — rather than as the frozen figure
+ * from that first fetch. The snapshot was a detail of when the page loaded, and
+ * showing it alongside the running total gave two numbers for one question.
  */
 export function StreamStats({ unit, history, arrived, loaded, rate, note }: {
     /** "traces" or "turns" — what one item is on this page. */
     unit: string;
-    /** How many existed server-side when this page first fetched. */
+    /** How many existed server-side when this page first fetched. Added to
+     *  `arrived` to report the live total. */
     history: number | null;
     /** How many have arrived live since then. */
     arrived: number;
@@ -59,15 +64,15 @@ export function StreamStats({ unit, history, arrived, loaded, rate, note }: {
         </div>
     );
 
+    const total = history === null ? null : history + arrived;
+
     return (
         <div className="flex shrink-0 items-center gap-0 overflow-x-auto border-b border-border py-3">
-            {cell("in history", history === null ? "…" : fmt(history), `${unit} before you opened`)}
+            {cell("in history", total === null ? "…" : fmt(total), `${unit} that exist`, true)}
             <span className="h-9 w-px shrink-0 bg-border" />
             {cell("arriving", `${rate.toFixed(1)}/s`, `new ${unit} per second`)}
             <span className="h-9 w-px shrink-0 bg-border" />
-            {cell("loaded", fmt(loaded), `${unit} pulled so far`)}
-            <span className="h-9 w-px shrink-0 bg-border" />
-            {cell("total now", history === null ? "…" : fmt(history + arrived), `history + ${fmt(arrived)} new`, true)}
+            {cell("loaded", fmt(loaded), `${unit} pulled by this page`)}
             {note && <span className="ml-auto pr-6 text-2xs text-muted-foreground/60">{note}</span>}
         </div>
     );
