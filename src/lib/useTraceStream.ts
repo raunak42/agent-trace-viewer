@@ -15,6 +15,22 @@ export interface StreamOptions {
     pageSize?: number;
 }
 
+/**
+ * Where the rows in the latest commit landed. The store is sorted by id, so a
+ * page of history lands at the front and live messages land at the back — and
+ * the two need opposite scroll handling: a prepend must be compensated so the
+ * viewport stays on the row the user was reading, while an append should only
+ * move the viewport if the user is already parked at the bottom.
+ *
+ * `seq` increments on every commit so a layout effect still fires when the
+ * counts happen to repeat.
+ */
+export interface InsertDelta {
+    prepended: number;
+    appended: number;
+    seq: number;
+}
+
 export interface StreamState {
     traces: TraceSummary[];
     connection: ConnectionState;
@@ -23,8 +39,11 @@ export interface StreamState {
     bootId: string | null;
     /** Counts every state commit, so the two views' re-render behaviour is comparable. */
     commits: number;
+    delta: InsertDelta;
     loadOlder: () => void;
 }
+
+const NO_DELTA: InsertDelta = { prepended: 0, appended: 0, seq: 0 };
 
 /**
  * Approach A: open the socket first, buffer whatever arrives, then load history
@@ -41,6 +60,7 @@ export function useTraceStream(options: StreamOptions): StreamState {
     const [loadingOlder, setLoadingOlder] = useState(false);
     const [bootId, setBootId] = useState<string | null>(null);
     const [commits, setCommits] = useState(0);
+    const [delta, setDelta] = useState<InsertDelta>(NO_DELTA);
 
     // Sorted ascending by id. Held in a ref so appends never depend on stale state.
     const store = useRef<TraceSummary[]>([]);
@@ -53,29 +73,42 @@ export function useTraceStream(options: StreamOptions): StreamState {
     const closedByUs = useRef(false);
     const oldestId = useRef<number | null>(null);
 
-    const commit = useCallback(() => {
+    // Guards are mirrored into refs because `loadOlder` is called from an
+    // IntersectionObserver callback, which would otherwise close over the
+    // `loadingOlder`/`hasMore` values from the render that registered it.
+    const loadingRef = useRef(false);
+    const hasMoreRef = useRef(true);
+
+    const commit = useCallback((d: { prepended: number; appended: number }) => {
         setTraces([...store.current]);
         setCommits((c) => c + 1);
+        setDelta((prev) => ({ prepended: d.prepended, appended: d.appended, seq: prev.seq + 1 }));
     }, []);
 
     const insert = useCallback((incoming: TraceSummary[]) => {
-        let added = false;
+        const oldestBefore = store.current[0]?.id;
+        let prepended = 0;
+        let appended = 0;
+
         for (const t of incoming) {
             if (ids.current.has(t.id)) continue;   // dedupe — duplicates are expected by design
             ids.current.add(t.id);
             store.current.push(t);
-            added = true;
+            if (oldestBefore !== undefined && t.id < oldestBefore) prepended += 1;
+            else appended += 1;
         }
-        if (!added) return;
+
+        if (prepended + appended === 0) return { prepended: 0, appended: 0 };
         store.current.sort((a, b) => a.id - b.id);
         oldestId.current = store.current[0]?.id ?? null;
+        return { prepended, appended };
     }, []);
 
     /** Live appends are batched: a burst of messages costs one render, not N. */
     const enqueue = useCallback((trace: TraceSummary) => {
         if (batchMs <= 0) {
-            insert([trace]);
-            commit();
+            const d = insert([trace]);
+            if (d.prepended + d.appended > 0) commit(d);
             return;
         }
         pending.current.push(trace);
@@ -84,25 +117,34 @@ export function useTraceStream(options: StreamOptions): StreamState {
             flushTimer.current = null;
             const batch = pending.current;
             pending.current = [];
-            insert(batch);
-            commit();
+            const d = insert(batch);
+            if (d.prepended + d.appended > 0) commit(d);
         }, batchMs);
     }, [batchMs, insert, commit]);
 
-    const loadOlder = useCallback(async () => {
-        if (loadingOlder || !hasMore || oldestId.current === null) return;
+    const loadOlder = useCallback(() => {
+        if (loadingRef.current || !hasMoreRef.current || oldestId.current === null) return;
+        loadingRef.current = true;
         setLoadingOlder(true);
-        try {
-            const page = await fetchHistory({ before: oldestId.current, limit: pageSize, projection, view });
-            insert(page.logs);
-            setHasMore(page.hasMore);
-            commit();
-        } catch {
-            // A failed page is recoverable: the cursor is unchanged, so scrolling retries.
-        } finally {
-            setLoadingOlder(false);
-        }
-    }, [loadingOlder, hasMore, pageSize, projection, view, insert, commit]);
+
+        void (async () => {
+            try {
+                const page = await fetchHistory({
+                    before: oldestId.current!, limit: pageSize, projection, view,
+                });
+                const d = insert(page.logs);
+                hasMoreRef.current = page.hasMore;
+                setHasMore(page.hasMore);
+                if (d.prepended + d.appended > 0) commit(d);
+            } catch {
+                // A failed page is recoverable: the cursor is unchanged, so the
+                // next time the top comes into view it retries.
+            } finally {
+                loadingRef.current = false;
+                setLoadingOlder(false);
+            }
+        })();
+    }, [pageSize, projection, view, insert, commit]);
 
     useEffect(() => {
         closedByUs.current = false;
@@ -126,6 +168,7 @@ export function useTraceStream(options: StreamOptions): StreamState {
                             store.current = [];
                             ids.current.clear();
                             oldestId.current = null;
+                            hasMoreRef.current = true;
                             setHasMore(true);
                         }
                         return msg.bootId;
@@ -137,14 +180,21 @@ export function useTraceStream(options: StreamOptions): StreamState {
                         const lastLocal = store.current[store.current.length - 1]?.id ?? 0;
                         if (msg.lastLogId > lastLocal) {
                             let cursor = lastLocal;
+                            let total = { prepended: 0, appended: 0 };
                             for (let guard = 0; guard < 40; guard += 1) {
+                                // `after` pages come back ascending, so the last
+                                // entry is the newest and anchors the next page.
                                 const gap = await fetchHistory({ after: cursor, limit: 100, projection, view });
                                 if (gap.logs.length === 0) break;
-                                insert(gap.logs);
+                                const d = insert(gap.logs);
+                                total = {
+                                    prepended: total.prepended + d.prepended,
+                                    appended: total.appended + d.appended,
+                                };
                                 cursor = gap.logs[gap.logs.length - 1]!.id;
                                 if (cursor >= msg.lastLogId) break;
                             }
-                            commit();
+                            if (total.prepended + total.appended > 0) commit(total);
                         }
                         phase.current = "live";
                         setConnection("live");
@@ -158,12 +208,16 @@ export function useTraceStream(options: StreamOptions): StreamState {
                         const history = await fetchHistory({
                             before: msg.lastLogId + 1, limit: pageSize, projection, view,
                         });
-                        insert(history.logs);
-                        insert(preHistoryBuffer.current);
+                        const a = insert(history.logs);
+                        const b = insert(preHistoryBuffer.current);
                         preHistoryBuffer.current = [];
+                        hasMoreRef.current = history.hasMore;
                         setHasMore(history.hasMore);
                         phase.current = "live";
-                        commit();
+                        commit({
+                            prepended: a.prepended + b.prepended,
+                            appended: a.appended + b.appended,
+                        });
                         setConnection("live");
                     } catch {
                         setConnection("error");
@@ -196,5 +250,5 @@ export function useTraceStream(options: StreamOptions): StreamState {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    return { traces, connection, hasMore, loadingOlder, bootId, commits, loadOlder };
+    return { traces, connection, hasMore, loadingOlder, bootId, commits, delta, loadOlder };
 }

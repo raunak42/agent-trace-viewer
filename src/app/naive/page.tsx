@@ -8,6 +8,8 @@ import { TraceDetail } from "@/components/TraceDetail";
 import { MetricsPanel } from "@/components/MetricsPanel";
 import { ViewSwitch } from "@/components/ViewSwitch";
 
+const ROW_HEIGHT = 41;
+
 /**
  * The unoptimised comparison. Reconciliation is identical to the optimised view
  * — correctness is not the variable being demonstrated. What differs:
@@ -16,12 +18,12 @@ import { ViewSwitch } from "@/components/ViewSwitch";
  *   2. `projection=session` pulls full documents with spans (~5.2 KB vs ~0.6 KB)
  *   3. no batching, so each live message triggers its own React commit
  *   4. pagination fires from a raw scroll handler on every event
+ *   5. new data yanks the viewport to the bottom wherever the user happens to be
  */
 export default function NaiveView() {
     const stream = useTraceStream({ projection: "session", batchMs: 0, view: "naive" });
     const [selected, setSelected] = useState<TraceSummary | null>(null);
     const scrollRef = useRef<HTMLDivElement>(null);
-    const prevLength = useRef(0);
     const [fps, setFps] = useState(60);
 
     // Frame rate makes the cost visible: the naive list drops frames as it grows.
@@ -37,13 +39,18 @@ export default function NaiveView() {
         return () => cancelAnimationFrame(raf);
     }, []);
 
-    // Always scrolls down on new data, regardless of where the user is.
     useLayoutEffect(() => {
-        if (stream.traces.length === prevLength.current) return;
-        prevLength.current = stream.traces.length;
         const el = scrollRef.current;
-        if (el) el.scrollTop = el.scrollHeight;
-    }, [stream.traces.length]);
+        if (!el) return;
+        // History still has to stay reachable, so a prepend is compensated here
+        // too — otherwise the viewport lands at scrollTop 0 and the scroll
+        // handler below has no event left to fire on.
+        if (stream.delta.prepended > 0) el.scrollTop += stream.delta.prepended * ROW_HEIGHT;
+        // The anti-pattern being demonstrated: any new row drags the viewport
+        // down, regardless of where the user was reading.
+        if (stream.delta.appended > 0) el.scrollTop = el.scrollHeight;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [stream.delta.seq]);
 
     // Unthrottled: runs on every scroll event.
     const onScroll = () => {
@@ -70,6 +77,7 @@ export default function NaiveView() {
                     ref={scrollRef}
                     onScroll={onScroll}
                     className="min-w-0 flex-1 overflow-auto"
+                    style={{ overflowAnchor: "none" }}
                     data-list-root
                 >
                     {stream.loadingOlder && <div className="py-2 text-center text-[11px] text-white/35">loading older…</div>}
