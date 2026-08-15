@@ -36,6 +36,9 @@ export function SessionNaive({ sessionId, anchorId, onStats, onTail }: {
     // Ids already held, so a live turn that the drain also returned is not
     // added twice. Declared before the drain effect that fills it.
     const known = useRef<Set<number>>(new Set());
+    /** The drain replaces the whole array each page, so nothing else may write
+     *  to it until the drain has caught up with the end of the session. */
+    const drained = useRef(false);
 
     useEffect(() => {
         // No mount guard: React remounts effects in development, and a guard
@@ -59,7 +62,9 @@ export function SessionNaive({ sessionId, anchorId, onStats, onTail }: {
                 if (!page.hasMore || page.nextCursor === null) break;
                 after = page.nextCursor;
             }
-            if (!cancelled) setDone(true);
+            if (cancelled) return;
+            drained.current = true;
+            setDone(true);
         })();
 
         return () => { cancelled = true; };
@@ -68,6 +73,14 @@ export function SessionNaive({ sessionId, anchorId, onStats, onTail }: {
     // Subscribes to everything and keeps the fraction that matches, so the
     // socket carries every other session's full documents for nothing.
     const handleTurn = useCallback((turn: TraceSummary) => {
+        // Ignored until the drain finishes, for two reasons. The drain assigns
+        // the whole array on every page, so an appended turn is wiped by the
+        // next one — and it would be recorded as known, so nothing would ever
+        // add it back. It would also be out of order: a turn arriving now is
+        // newer than turns the drain has not reached yet. Nothing is lost by
+        // waiting, because the drain runs until the session has no more pages,
+        // so it collects these itself.
+        if (!drained.current) return;
         if (known.current.has(turn.id)) return;
         known.current.add(turn.id);
         setTurns((prev) => [...prev, turn as Trace]);
