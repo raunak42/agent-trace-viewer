@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { fetchSessionPage } from "@/lib/api";
 import { useSessionTail } from "@/lib/useSessionTail";
 import type { Trace } from "@/lib/types";
@@ -71,8 +71,15 @@ export function SessionNaive({ sessionId, anchorId, onStats, onTail }: {
         onStats({ loaded: turns.length, total, mounted: turns.length });
     }, [turns.length, total, onStats]);
 
+    // Snaps to the newest turn on every change, wherever the reader was.
+    const scrollRef = useRef<HTMLDivElement>(null);
+    useLayoutEffect(() => {
+        const el = scrollRef.current;
+        if (el) el.scrollTop = el.scrollHeight;
+    }, [turns.length]);
+
     return (
-        <div className="nl-scroll h-full overflow-auto px-6 py-5" data-session-root>
+        <div ref={scrollRef} className="nl-scroll h-full overflow-auto px-6 py-5" data-session-root>
             <div className="mx-auto w-full max-w-[960px]">
                 {!done && (
                     <div className="mb-4 rounded-lg border border-amber-500/30 bg-amber-500/5 px-3 py-2 text-2xs text-amber-700">

@@ -1,71 +1,129 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { fetchSessionPage, fetchTrace } from "@/lib/api";
 import { useSessionTail } from "@/lib/useSessionTail";
 import type { Span, TraceSummary } from "@/lib/types";
 import { SessionTurn } from "./SessionTurn";
+import { NewArrivalsPill } from "../NewArrivalsPill";
 
 const PAGE = 50;
 
 /**
- * The optimised session view. Three things keep a 900-turn session cheap:
+ * The optimised session view, read like a chat log: it opens on the turn you
+ * arrived at — which for a row clicked off the top of the list is the live end
+ * of the conversation — pages history upward as you scroll back, and appends
+ * new turns at the bottom as they happen.
  *
- *   1. turns arrive as the list projection (~0.75 KB) instead of full
- *      documents (~3.9 KB), so the first page is 36 KB rather than 3.5 MB
+ * Three things keep a 2,000-turn session cheap:
+ *
+ *   1. turns arrive as the list projection (~0.75 KB) rather than full
+ *      documents (~3.9 KB)
  *   2. only the turns near the viewport are mounted
  *   3. a turn's spans are fetched when it is opened, never up front
  */
-export function SessionOptimized({ sessionId, anchorId, onStats, onTail }: {
+export function SessionOptimized({ sessionId, anchorId, anchorSeq, onStats, onTail }: {
     sessionId: string;
     anchorId: string;
+    /** Numeric id of the turn that was clicked; the first page ends here. */
+    anchorSeq: number;
     onStats: (s: { loaded: number; total: number; mounted: number }) => void;
     onTail: (t: { kept: number; discarded: number; bytes: number }) => void;
 }) {
     const [turns, setTurns] = useState<TraceSummary[]>([]);
     const [total, setTotal] = useState(0);
-    const [hasMore, setHasMore] = useState(true);
     const [spans, setSpans] = useState<Record<string, Span[]>>({});
     const [pending, setPending] = useState<Record<string, boolean>>({});
     const [open, setOpen] = useState<Record<string, boolean>>({});
+    const [newCount, setNewCount] = useState(0);
 
     const scrollRef = useRef<HTMLDivElement>(null);
-    const bottom = useRef<HTMLDivElement>(null);
-    const loading = useRef(false);
-    const cursor = useRef<number | undefined>(undefined);
-    const hasMoreRef = useRef(true);
+    const topSentinel = useRef<HTMLDivElement>(null);
+    const bottomSentinel = useRef<HTMLDivElement>(null);
+    const atBottom = useRef(true);
 
-    const loadMore = useCallback(async () => {
-        if (loading.current || !hasMoreRef.current) return;
-        loading.current = true;
+    const busy = useRef(false);
+    const oldest = useRef<number | undefined>(undefined);
+    const newest = useRef<number | undefined>(undefined);
+    const moreOlder = useRef(true);
+    const moreNewer = useRef(true);
+    const didLand = useRef(false);
+    /** Height before a prepend, so the viewport can be held in place after it. */
+    const heightBefore = useRef<number | null>(null);
+
+    const ids = useRef<Set<number>>(new Set());
+    const addTurns = (incoming: TraceSummary[], side: "older" | "newer") => {
+        const fresh = incoming.filter((t) => !ids.current.has(t.id));
+        if (fresh.length === 0) return 0;
+        for (const t of fresh) ids.current.add(t.id);
+        setTurns((prev) => (side === "older" ? [...fresh, ...prev] : [...prev, ...fresh]));
+        return fresh.length;
+    };
+
+    /** First page ends at the turn we arrived on, so the view opens there. */
+    useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            const page = await fetchSessionPage(sessionId, {
+                before: anchorSeq + 1, limit: PAGE, projection: "list", view: "optimized",
+            });
+            if (cancelled) return;
+            for (const t of page.logs) ids.current.add(t.id);
+            setTurns(page.logs);
+            setTotal(page.total);
+            oldest.current = page.logs[0]?.id;
+            newest.current = page.logs[page.logs.length - 1]?.id;
+            moreOlder.current = (page.logs[0]?.id ?? 0) > 0 && page.logs.length === PAGE;
+            moreNewer.current = (newest.current ?? 0) < anchorSeq + PAGE || page.hasMore;
+        })();
+        return () => { cancelled = true; };
+    }, [sessionId, anchorSeq]);
+
+    const loadOlder = useCallback(async () => {
+        if (busy.current || !moreOlder.current || oldest.current === undefined) return;
+        busy.current = true;
+        heightBefore.current = scrollRef.current?.scrollHeight ?? null;
         try {
             const page = await fetchSessionPage(sessionId, {
-                after: cursor.current, limit: PAGE, projection: "list", view: "optimized",
+                before: oldest.current, limit: PAGE, projection: "list", view: "optimized",
             });
-            cursor.current = page.nextCursor ?? cursor.current;
-            hasMoreRef.current = page.hasMore;
-            setHasMore(page.hasMore);
-            setTotal(page.total);
-            setTurns((prev) => {
-                const seen = new Set(prev.map((t) => t.id));
-                return [...prev, ...page.logs.filter((t) => !seen.has(t.id))];
-            });
+            if (page.logs.length === 0) { moreOlder.current = false; return; }
+            oldest.current = page.logs[0]?.id ?? oldest.current;
+            if (page.logs.length < PAGE) moreOlder.current = false;
+            if (addTurns(page.logs, "older") === 0) moreOlder.current = false;
         } finally {
-            loading.current = false;
+            busy.current = false;
         }
     }, [sessionId]);
 
-    useEffect(() => { void loadMore(); }, [loadMore]);
+    const loadNewer = useCallback(async () => {
+        if (busy.current || !moreNewer.current || newest.current === undefined) return;
+        busy.current = true;
+        try {
+            const page = await fetchSessionPage(sessionId, {
+                after: newest.current, limit: PAGE, projection: "list", view: "optimized",
+            });
+            if (page.logs.length === 0) { moreNewer.current = false; return; }
+            newest.current = page.logs[page.logs.length - 1]?.id ?? newest.current;
+            moreNewer.current = page.hasMore;
+            addTurns(page.logs, "newer");
+        } finally {
+            busy.current = false;
+        }
+    }, [sessionId]);
 
-    // Turns arriving live are appended in place. The subscription is scoped to
-    // this session and to summaries, so nothing arrives that has to be dropped.
+    // Live turns belong at the bottom, but only once the bottom is actually
+    // loaded — otherwise they would sit next to turns they do not follow.
     const tail = useSessionTail({
         sessionId,
         filtered: true,
         onTurn: (turn) => {
-            setTurns((prev) => (prev.some((t) => t.id === turn.id) ? prev : [...prev, turn]));
+            if (moreNewer.current) return;
+            if (addTurns([turn], "newer") === 0) return;
+            newest.current = turn.id;
             setTotal((n) => n + 1);
+            if (!atBottom.current) setNewCount((n) => n + 1);
         },
     });
     useEffect(() => { onTail(tail); }, [tail, onTail]);
@@ -73,23 +131,61 @@ export function SessionOptimized({ sessionId, anchorId, onStats, onTail }: {
     const virtualizer = useVirtualizer({
         count: turns.length,
         getScrollElement: () => scrollRef.current,
-        // Turns vary in height, so the estimate is a starting point and each
-        // mounted row reports its real size back.
         estimateSize: () => 210,
         getItemKey: (i) => turns[i]?.id ?? i,
         overscan: 4,
+        // Writing scrollTop from a layout effect — which pinning to the latest
+        // turn requires — lands the virtualizer's notify inside React's commit,
+        // and its default synchronous flush errors there. Scheduling the
+        // re-render normally costs at most a frame of catch-up while scrolling.
+        useFlushSync: false,
+        useAnimationFrameWithResizeObserver: true,
     });
 
-    // Paging is driven by the sentinel's visibility, not by scroll events.
+    const totalSize = virtualizer.getTotalSize();
+
+    // Turns prepended above the viewport would otherwise drag it down. Heights
+    // vary here, so the shift is measured rather than computed from a row size.
+    // Runs before the pin below, and the two are mutually exclusive anyway:
+    // one applies when reading history, the other when following the end.
+    useLayoutEffect(() => {
+        const el = scrollRef.current;
+        if (!el || heightBefore.current === null) return;
+        const grew = el.scrollHeight - heightBefore.current;
+        heightBefore.current = null;
+        if (grew > 0) el.scrollTop += grew;
+    }, [turns.length]);
+
+    // Open on the latest turn and stay there while the reader is at the end.
+    // scrollTop is written directly rather than through scrollToIndex: that
+    // path triggers a synchronous measurement flush, which React rejects from
+    // inside a lifecycle. Re-runs as sizes settle so estimates cannot leave it
+    // a few hundred pixels short of the true bottom.
+    useLayoutEffect(() => {
+        const el = scrollRef.current;
+        if (!el || turns.length === 0) return;
+        if (!didLand.current) {
+            didLand.current = true;
+            el.scrollTop = el.scrollHeight;
+            return;
+        }
+        if (atBottom.current) el.scrollTop = el.scrollHeight;
+    }, [turns.length, totalSize]);
+
     useEffect(() => {
-        const el = bottom.current, root = scrollRef.current;
-        if (!el || !root) return;
-        const io = new IntersectionObserver(([e]) => {
-            if (e?.isIntersecting) void loadMore();
+        const root = scrollRef.current;
+        if (!root) return;
+        const top = new IntersectionObserver(([e]) => {
+            if (e?.isIntersecting) void loadOlder();
+        }, { root, rootMargin: "600px 0px 0px 0px" });
+        const bottom = new IntersectionObserver(([e]) => {
+            atBottom.current = e?.isIntersecting ?? false;
+            if (atBottom.current) { setNewCount(0); void loadNewer(); }
         }, { root, rootMargin: "0px 0px 600px 0px" });
-        io.observe(el);
-        return () => io.disconnect();
-    }, [loadMore]);
+        if (topSentinel.current) top.observe(topSentinel.current);
+        if (bottomSentinel.current) bottom.observe(bottomSentinel.current);
+        return () => { top.disconnect(); bottom.disconnect(); };
+    }, [loadOlder, loadNewer]);
 
     const items = virtualizer.getVirtualItems();
     useEffect(() => {
@@ -109,39 +205,53 @@ export function SessionOptimized({ sessionId, anchorId, onStats, onTail }: {
         }
     };
 
+    const jumpToLatest = () => {
+        const el = scrollRef.current;
+        if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+        setNewCount(0);
+        atBottom.current = true;
+    };
+
     return (
-        <div ref={scrollRef} className="nl-scroll h-full overflow-auto px-6 py-5" data-session-root>
-            <div className="mx-auto w-full max-w-[960px]">
-                <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
-                    {items.map((item) => {
-                        const t = turns[item.index];
-                        if (!t) return null;
-                        return (
-                            <div
-                                key={t.id}
-                                ref={virtualizer.measureElement}
-                                data-index={item.index}
-                                style={{
-                                    position: "absolute", top: 0, left: 0, width: "100%",
-                                    transform: `translateY(${item.start}px)`,
-                                }}
-                            >
-                                <SessionTurn
-                                    trace={t}
-                                    spans={spans[t._id]}
-                                    loadingSpans={pending[t._id]}
-                                    expanded={Boolean(open[t._id])}
-                                    onToggle={() => void toggle(t)}
-                                    highlighted={t._id === anchorId}
-                                    divider={item.index > 0}
-                                />
-                            </div>
-                        );
-                    })}
+        <div className="relative h-full">
+            <div ref={scrollRef} className="nl-scroll h-full overflow-auto px-6 py-5" data-session-root>
+                <div className="mx-auto w-full max-w-[960px]">
+                    <div ref={topSentinel} className="h-px" />
+                    {moreOlder.current && (
+                        <div className="py-3 text-center text-2xs text-muted-foreground">loading earlier turns…</div>
+                    )}
+                    <div style={{ height: totalSize, position: "relative" }}>
+                        {items.map((item) => {
+                            const t = turns[item.index];
+                            if (!t) return null;
+                            return (
+                                <div
+                                    key={t.id}
+                                    ref={virtualizer.measureElement}
+                                    data-index={item.index}
+                                    data-turn-id={t.id}
+                                    style={{
+                                        position: "absolute", top: 0, left: 0, width: "100%",
+                                        transform: `translateY(${item.start}px)`,
+                                    }}
+                                >
+                                    <SessionTurn
+                                        trace={t}
+                                        spans={spans[t._id]}
+                                        loadingSpans={pending[t._id]}
+                                        expanded={Boolean(open[t._id])}
+                                        onToggle={() => void toggle(t)}
+                                        highlighted={t._id === anchorId}
+                                        divider={item.index > 0}
+                                    />
+                                </div>
+                            );
+                        })}
+                    </div>
+                    <div ref={bottomSentinel} className="h-px" />
                 </div>
-                <div ref={bottom} className="h-px" />
-                {hasMore && <div className="py-3 text-center text-2xs text-muted-foreground">loading more turns…</div>}
             </div>
+            <NewArrivalsPill count={newCount} onClick={jumpToLatest} direction="down" />
         </div>
     );
 }
