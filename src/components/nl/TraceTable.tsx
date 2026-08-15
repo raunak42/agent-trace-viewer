@@ -31,12 +31,13 @@ export const COLUMNS: Column[] = [
     { id: "ingestedAt", label: "Ingested at", width: 140 },
     { id: "replay", label: "Replay", width: 112, align: "center" },
     { id: "status", label: "Status", width: 90, align: "center" },
-    { id: "input", label: "Input", width: 260, grow: true },
-    { id: "output", label: "Output", width: 260, grow: true },
-    { id: "workflow", label: "Workflow", width: 150 },
-    { id: "spans", label: "Spans", width: 80 },
-    { id: "tokens", label: "Tokens", width: 110 },
-    { id: "latency", label: "Latency", width: 100 },
+    { id: "input", label: "Input", width: 230, grow: true },
+    { id: "output", label: "Output", width: 230, grow: true },
+    { id: "workflow", label: "Workflow", width: 146 },
+    { id: "spans", label: "Spans", width: 92 },
+    { id: "tokens", label: "Tokens", width: 104 },
+    { id: "latency", label: "Latency", width: 112 },
+    { id: "traceId", label: "Trace", width: 130 },
 ];
 
 const cellStyle = (c: Column): React.CSSProperties => ({
@@ -165,6 +166,15 @@ export function TraceRow({
                     case "latency":
                         return cell(c, (
                             <span className="font-mono text-xs tabular-nums">{fmtLatency(trace.latency)}</span>
+                        ));
+                    case "traceId":
+                        // The real 32-hex trace id, truncated. Resolvable at
+                        // /api/traces/<id>, so a row can be checked against the
+                        // source rather than taken on trust.
+                        return cell(c, (
+                            <span className="truncate font-mono text-2xs text-muted-foreground/70" title={trace._id}>
+                                {trace._id.slice(0, 12)}…
+                            </span>
                         ));
                     default:
                         return cell(c, <span className="text-muted-foreground">–</span>);

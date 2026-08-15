@@ -67,7 +67,10 @@ function SpanNodeTree({ span, all, depth, expandAll }: {
                 {span.status === "ERROR" && (
                     <span className="shrink-0 rounded bg-destructive/10 px-1.5 py-0.5 text-2xs text-destructive">error</span>
                 )}
-                <span className="ml-auto shrink-0 font-mono text-xs tabular-nums text-muted-foreground/70">
+                <span className="ml-auto shrink-0 font-mono text-2xs text-muted-foreground/45" title={`span_id ${span.span_id}`}>
+                    {span.span_id}
+                </span>
+                <span className="w-14 shrink-0 text-right font-mono text-xs tabular-nums text-muted-foreground/70">
                     {dur(d.duration_ms)}
                 </span>
             </div>
@@ -142,6 +145,9 @@ export function SessionTurn({
                     {trace.status === "error" && (
                         <span className="rounded bg-destructive/10 px-1.5 py-0.5 text-2xs text-destructive">error</span>
                     )}
+                    <span className="font-mono text-2xs text-muted-foreground/45" title={`trace ${trace._id}`}>
+                        #{trace.id} · {trace._id.slice(0, 16)}…
+                    </span>
                     {expanded && spans && (
                         <button type="button" onClick={() => setExpandAll((e) => !e)}
                             className="ml-auto cursor-pointer text-2xs tracking-wide text-muted-foreground transition-colors hover:text-foreground">
