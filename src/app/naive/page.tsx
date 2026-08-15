@@ -28,20 +28,16 @@ export default function NaiveView() {
     useLayoutEffect(() => {
         const el = scrollRef.current;
         if (!el) return;
-        // History still has to stay reachable, so a prepend is compensated here
-        // too — otherwise the viewport lands at scrollTop 0 and the scroll
-        // handler below has no event left to fire on.
-        if (stream.delta.prepended > 0) el.scrollTop += stream.delta.prepended * ROW_HEIGHT;
-        // The anti-pattern: any new row drags the viewport down, regardless of
-        // where the reader was.
-        if (stream.delta.appended > 0) el.scrollTop = el.scrollHeight;
+        // The anti-pattern, inverted along with the list: any new row snaps the
+        // viewport back to the newest, wherever the reader happened to be.
+        if (stream.delta.addedAtTop > 0) el.scrollTop = 0;
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [stream.delta.seq]);
 
-    // Unthrottled: runs on every scroll event.
+    // Unthrottled: runs on every scroll event. Older rows are at the bottom now.
     const onScroll = () => {
         const el = scrollRef.current;
-        if (el && el.scrollTop < 400) stream.loadOlder();
+        if (el && el.scrollTop > el.scrollHeight - el.clientHeight - 400) stream.loadOlder();
     };
 
     const hist = buildHistogram(stream.traces);

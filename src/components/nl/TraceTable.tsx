@@ -102,6 +102,7 @@ export function TraceRow({
     return (
         <div
             onClick={() => onOpen(trace)}
+            data-trace-id={trace.id}
             className={`flex w-full cursor-pointer items-center border-b border-border-soft text-[13px] text-muted-foreground transition-colors hover:bg-surface-subtle/80 ${
                 selected ? "bg-surface-subtle" : ""
             } ${animate ? "row-fade" : ""}`}

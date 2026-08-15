@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { useVirtualizer } from "@tanstack/react-virtual";
 import { useRouter } from "next/navigation";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { useTraceStream } from "@/lib/useTraceStream";
 import { useViewMetrics, buildHistogram } from "@/lib/useViewMetrics";
 import { TableHeader, TraceRow, ROW_HEIGHT } from "@/components/nl/TraceTable";
@@ -11,6 +11,12 @@ import { NewArrivalsPill } from "@/components/NewArrivalsPill";
 
 const PAGE_SIZE = 50;
 
+/**
+ * Newest-first, matching app.neatlogs.com: live rows arrive at the top and
+ * history extends the bottom. That inverts the usual tail-follow logic — the
+ * viewport sticks to the top, older pages load when the bottom comes into
+ * view, and only insertions above the viewport need scroll compensation.
+ */
 export default function OptimizedView() {
     const stream = useTraceStream({ projection: "list", batchMs: 150, view: "optimized", pageSize: PAGE_SIZE });
     const metrics = useViewMetrics("optimized");
@@ -20,84 +26,74 @@ export default function OptimizedView() {
     const scrollRef = useRef<HTMLDivElement>(null);
     const topSentinel = useRef<HTMLDivElement>(null);
     const bottomSentinel = useRef<HTMLDivElement>(null);
-    const atBottom = useRef(true);
-    const atTop = useRef(false);
-    const didInitialScroll = useRef(false);
+    const atTop = useRef(true);
+    const atBottom = useRef(false);
 
     const virtualizer = useVirtualizer({
         count: stream.traces.length,
         getScrollElement: () => scrollRef.current,
         estimateSize: () => ROW_HEIGHT,
-        // Without a stable key the size cache is addressed by index, so
-        // prepending a page of history shifts every measurement onto the
-        // wrong row.
+        // Without a stable key the size cache is addressed by index, so rows
+        // arriving at the top would shift every measurement onto the wrong row.
         getItemKey: (index) => stream.traces[index]?.id ?? index,
         overscan: 12,
     });
 
     const loadOlderRef = useRef(stream.loadOlder);
-    loadOlderRef.current = stream.loadOlder;
+    useEffect(() => { loadOlderRef.current = stream.loadOlder; });
 
-    // Pagination is driven by visibility, not by scroll events: a scroll
-    // handler stops firing once scrollTop hits 0, which dead-ends the list.
-    useEffect(() => {
-        const el = topSentinel.current, root = scrollRef.current;
-        if (!el || !root) return;
-        const io = new IntersectionObserver(([e]) => {
-            atTop.current = e?.isIntersecting ?? false;
-            if (atTop.current && didInitialScroll.current) loadOlderRef.current();
-        }, { root, rootMargin: "300px 0px 0px 0px", threshold: 0 });
-        io.observe(el);
-        return () => io.disconnect();
-    }, []);
-
+    // Older pages now live at the bottom, so that is what drives pagination.
+    // Visibility rather than scroll events: a scroll handler stops firing once
+    // the viewport stops moving, which dead-ends the list.
     useEffect(() => {
         const el = bottomSentinel.current, root = scrollRef.current;
         if (!el || !root) return;
         const io = new IntersectionObserver(([e]) => {
             atBottom.current = e?.isIntersecting ?? false;
-            if (atBottom.current) setNewCount(0);
-        }, { root, rootMargin: "0px 0px 200px 0px", threshold: 0 });
+            if (atBottom.current) loadOlderRef.current();
+        }, { root, rootMargin: "0px 0px 400px 0px", threshold: 0 });
         io.observe(el);
         return () => io.disconnect();
     }, []);
 
-    // A prepend grows the spacer above the viewport, so scrollTop has to move
-    // by the height inserted or the reader is dragged toward the top.
-    useLayoutEffect(() => {
-        const el = scrollRef.current;
-        if (!el || stream.delta.prepended <= 0) return;
-        el.scrollTop += stream.delta.prepended * ROW_HEIGHT;
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [stream.delta.seq]);
-
+    // The top is where new rows land, so it is what "am I following?" means.
     useEffect(() => {
-        if (stream.loadingOlder || !stream.hasMore || !didInitialScroll.current) return;
-        const el = scrollRef.current;
-        if (atTop.current && el && el.scrollTop < ROW_HEIGHT * 10) loadOlderRef.current();
+        const el = topSentinel.current, root = scrollRef.current;
+        if (!el || !root) return;
+        const io = new IntersectionObserver(([e]) => {
+            atTop.current = e?.isIntersecting ?? false;
+            if (atTop.current) setNewCount(0);
+        }, { root, rootMargin: "200px 0px 0px 0px", threshold: 0 });
+        io.observe(el);
+        return () => io.disconnect();
+    }, []);
+
+    // Keep paging while the bottom is still in view after a page resolves.
+    useEffect(() => {
+        if (stream.loadingOlder || !stream.hasMore) return;
+        if (atBottom.current) loadOlderRef.current();
     }, [stream.loadingOlder, stream.hasMore, stream.delta.seq]);
 
     useLayoutEffect(() => {
-        if (stream.delta.appended <= 0) return;
-        if (atBottom.current) {
-            virtualizer.scrollToIndex(stream.traces.length - 1, { align: "end" });
+        const el = scrollRef.current;
+        if (!el || stream.delta.addedAtTop <= 0) return;
+        if (atTop.current) {
+            // Following the stream: stay pinned to the newest row.
+            el.scrollTop = 0;
             setNewCount(0);
         } else {
-            setNewCount((n) => n + stream.delta.appended);
+            // Reading history: rows inserted above would otherwise drag the
+            // viewport down by exactly their height.
+            el.scrollTop += stream.delta.addedAtTop * ROW_HEIGHT;
+            setNewCount((n) => n + stream.delta.addedAtTop);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [stream.delta.seq]);
 
-    useLayoutEffect(() => {
-        if (didInitialScroll.current || stream.traces.length === 0) return;
-        didInitialScroll.current = true;
-        virtualizer.scrollToIndex(stream.traces.length - 1, { align: "end" });
-    }, [stream.traces.length, virtualizer]);
-
-    const jumpToBottom = () => {
-        virtualizer.scrollToIndex(stream.traces.length - 1, { align: "end", behavior: "smooth" });
+    const jumpToNewest = () => {
+        virtualizer.scrollToIndex(0, { align: "start", behavior: "smooth" });
         setNewCount(0);
-        atBottom.current = true;
+        atTop.current = true;
     };
 
     const items = virtualizer.getVirtualItems();
@@ -127,10 +123,7 @@ export default function OptimizedView() {
                                             height: ROW_HEIGHT, transform: `translateY(${item.start}px)`,
                                         }}
                                     >
-                                        <TraceRow
-                                            trace={trace}
-                                            onOpen={(t) => router.push(`/traces/${t._id}`)}
-                                        />
+                                        <TraceRow trace={trace} onOpen={(t) => router.push(`/traces/${t._id}`)} />
                                     </div>
                                 );
                             })}
@@ -139,16 +132,16 @@ export default function OptimizedView() {
                     </div>
 
                     {stream.loadingOlder && (
-                        <div className="pointer-events-none absolute inset-x-0 top-10 py-1.5 text-center text-2xs text-muted-foreground">
+                        <div className="pointer-events-none absolute inset-x-0 bottom-0 py-1.5 text-center text-2xs text-muted-foreground">
                             loading older…
                         </div>
                     )}
                     {!stream.hasMore && stream.traces.length > 0 && !stream.loadingOlder && (
-                        <div className="pointer-events-none absolute inset-x-0 top-10 py-1.5 text-center text-2xs text-muted-foreground/60">
+                        <div className="pointer-events-none absolute inset-x-0 bottom-0 py-1.5 text-center text-2xs text-muted-foreground/60">
                             start of buffer
                         </div>
                     )}
-                    <NewArrivalsPill count={newCount} onClick={jumpToBottom} />
+                    <NewArrivalsPill count={newCount} onClick={jumpToNewest} />
                 </div>
             </div>
             <FooterBar
