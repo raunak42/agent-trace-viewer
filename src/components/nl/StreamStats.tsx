@@ -78,13 +78,18 @@ export function StreamStats({ unit, history, arrived, loaded, rate, connection, 
             <span className="h-9 w-px shrink-0 bg-border" />
             {cell("loaded", fmt(loaded), `${unit} pulled by this page`)}
             {connection && (
-                <span className="ml-auto flex shrink-0 items-center gap-2 pr-6">
-                    <span className={`size-2 rounded-full ${
-                        connection === "live" ? "animate-pulse bg-success" : "bg-muted-foreground/40"}`} />
-                    <span className="text-xs tracking-wide text-muted-foreground uppercase">{connection}</span>
-                </span>
+                <>
+                    <span className="h-9 w-px shrink-0 bg-border" />
+                    {/* Sits with the figures rather than pushed to the far edge:
+                        it qualifies them, so it belongs beside them. */}
+                    <span className="flex shrink-0 items-center gap-2 px-5">
+                        <span className={`size-2 rounded-full ${
+                            connection === "live" ? "animate-pulse bg-success" : "bg-muted-foreground/40"}`} />
+                        <span className="text-xs tracking-wide text-muted-foreground uppercase">{connection}</span>
+                    </span>
+                </>
             )}
-            {note && !connection && <span className="ml-auto pr-6 text-2xs text-muted-foreground/60">{note}</span>}
+            {note && <span className="ml-auto pr-6 text-2xs text-muted-foreground/60">{note}</span>}
         </div>
     );
 }
