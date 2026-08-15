@@ -8,8 +8,8 @@ import type { Trace } from "@/lib/types";
 import { SessionView } from "@/components/nl/SessionView";
 import { StreamStats, useArrivalRate } from "@/components/nl/StreamStats";
 import { ChevronLeftIcon } from "@/components/nl/icons";
+import { type Build, BUILDS, isBuild } from "@/lib/builds";
 
-type Build = "optimized" | "naive";
 
 /** capacity ÷ ingest rate, i.e. how long a trace stays resolvable. */
 const RETENTION_HOURS = Math.round(140_000 / 5 / 3600);
@@ -17,12 +17,13 @@ const RETENTION_HOURS = Math.round(140_000 / 5 / 3600);
 /**
  * Their row click is a route, not a panel: /traces/{traceId} opens the whole
  * session the trace belongs to, rendered as a transcript of turns. This serves
- * both builds off the same route so the two can be compared on one session.
+ * all three builds off the same route so they can be compared on one session.
  */
 function SessionPage({ traceId }: { traceId: string }) {
     const params = useSearchParams();
     const router = useRouter();
-    const build: Build = params.get("build") === "naive" ? "naive" : "optimized";
+    const q = params.get("build");
+    const build: Build = isBuild(q) ? q : "windowed";
 
     // Keyed by the id it was fetched for, so switching trace clears the old
     // one without a synchronous setState at the top of the effect.
@@ -38,7 +39,7 @@ function SessionPage({ traceId }: { traceId: string }) {
 
     useEffect(() => {
         let cancelled = false;
-        fetchTrace(traceId, build)
+        fetchTrace(traceId)
             .then((t) => { if (!cancelled) setLoaded({ id: traceId, anchor: t, error: null }); })
             .catch((e) => { if (!cancelled) setLoaded({ id: traceId, anchor: null, error: String(e?.message ?? e) }); });
         return () => { cancelled = true; };
@@ -89,10 +90,10 @@ function SessionPage({ traceId }: { traceId: string }) {
     const jumpToLiveSession = async () => {
         setJumping(true);
         try {
-            const { sessions } = await fetchSessionList(5, build);
+            const { sessions } = await fetchSessionList(5);
             const target = sessions.find((s) => s.live && s.sessionId !== anchor?.sessionId) ?? sessions[0];
             if (!target) return;
-            const page = await fetchSessionPage(target.sessionId, { limit: 1, projection: "list", view: build });
+            const page = await fetchSessionPage(target.sessionId, { limit: 1, projection: "list" });
             const first = page.logs[0];
             if (first) router.push(`/traces/${first._id}?build=${build}`);
         } finally {
@@ -108,6 +109,7 @@ function SessionPage({ traceId }: { traceId: string }) {
 
     const tab = (b: Build, label: string, sub: string) => (
         <Link
+            key={b}
             href={`/traces/${traceId}?build=${b}`}
             className={`flex flex-col justify-center border-b-2 px-4 py-2 transition-colors ${
                 build === b ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
@@ -129,13 +131,12 @@ function SessionPage({ traceId }: { traceId: string }) {
                 note="one conversation"
             />
             <div className="flex h-12 shrink-0 items-center gap-1 border-b border-border px-4">
-                {tab("optimized", "Virtualised", "turns near the viewport only")}
-                {tab("naive", "Unoptimised", "every loaded turn mounted")}
+                {BUILDS.map((b) => tab(b.id, b.label, b.note))}
             </div>
 
             <header className="flex h-[68px] shrink-0 items-center justify-between border-b border-border px-4">
                 <div className="flex min-w-0 items-center gap-3">
-                    <Link href="/optimized" aria-label="Back to traces"
+                    <Link href={`/${build}`} aria-label="Back to traces"
                         className="flex size-8 shrink-0 items-center justify-center rounded-lg text-foreground transition-colors hover:bg-muted">
                         <ChevronLeftIcon className="size-4" />
                     </Link>
@@ -191,8 +192,7 @@ function SessionPage({ traceId }: { traceId: string }) {
                         key={build}
                         sessionId={anchor.sessionId}
                         anchorId={anchor._id}
-                        virtualise={build === "optimized"}
-                        view={build}
+                        build={build}
                         onStats={onStats}
                         onTail={onTail}
                         onHeader={onHeader}

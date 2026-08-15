@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useTraceStream } from "@/lib/useTraceStream";
 import { fetchStats } from "@/lib/api";
+import { type Build, BULK_LIMIT, bulkFetches, virtualises } from "@/lib/builds";
 import { TableHeader, TraceRow, ROW_HEIGHT } from "./TraceTable";
 import { BuildSwitch } from "./Chrome";
 import { StreamStats, useArrivalRate } from "./StreamStats";
@@ -14,27 +15,27 @@ import { SessionList } from "./SessionList";
 const PAGE_SIZE = 50;
 
 /**
- * The trace list, in both builds.
+ * The trace list, in all three builds.
  *
- * One component on purpose. The socket, the projection, the page size, the
- * batching and the cursor are identical in both, so the two pull the same bytes
- * in the same requests and their counters move together.
- *
- * `virtualise` is the only difference. With it, the rows near the viewport are
- * mounted and the rest are a spacer; without it, every row loaded is in the
- * document. Keeping them in one file is what stops some other difference
- * creeping in and being read as the effect of virtualising.
+ * One component on purpose, so the three builds differ only where they are
+ * meant to: whether the first load asks for everything at once or takes a
+ * cursor page, and whether every loaded row is mounted or only those near the
+ * viewport. The socket, the projection, the batching and the paging behind the
+ * first load are shared.
  *
  * Newest-first, matching app.neatlogs.com: live rows arrive at the top and
  * history extends the bottom. That inverts the usual tail-follow logic — the
  * viewport sticks to the top, older pages load when the bottom comes into view,
  * and only insertions above the viewport need scroll compensation.
  */
-export function TraceListView({ virtualise, view }: {
-    virtualise: boolean;
-    view: "optimized" | "naive";
-}) {
-    const stream = useTraceStream({ projection: "list", batchMs: 150, view, pageSize: PAGE_SIZE });
+export function TraceListView({ build }: { build: Build }) {
+    const virtualise = virtualises(build);
+    const stream = useTraceStream({
+        projection: "list",
+        batchMs: 150,
+        pageSize: PAGE_SIZE,
+        bulk: bulkFetches(build) ? BULK_LIMIT : undefined,
+    });
     const [history, setHistory] = useState<number | null>(null);
     useEffect(() => {
         let cancelled = false;
@@ -156,7 +157,7 @@ export function TraceListView({ virtualise, view }: {
                 rate={rate}
                 connection={stream.connection}
             />
-            <BuildSwitch active={view} />
+            <BuildSwitch active={build} />
             <div className="flex shrink-0 items-center gap-1 border-t border-border px-6 py-2">
                 {([["Turns", false], ["Conversations", true]] as const).map(([label, on]) => (
                     <button

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { type Build, BUILDS } from "@/lib/builds";
 import {
     TracesIcon, SearchIcon, CalendarIcon, CloseIcon, ChevronDownIcon,
     FunnelIcon, PlusIcon, SlidersIcon,
@@ -97,30 +98,23 @@ export function Histogram({ buckets, labels }: { buckets: number[]; labels: stri
     );
 }
 
-/* ── footer ───────────────────────────────────────────────────────────────
-   Their pagination bar, reused as the live status/metrics strip: this list
-   tails a stream rather than paging, so the range readout becomes the store
-   counters that make the two builds comparable.                             */
-/* ── build switch ─────────────────────────────────────────────────────────
-   Not part of their UI — this demo has two builds to compare. They differ in
-   one thing, so the labels name that one thing: everything about how either
-   talks to the server is identical.                                        */
-export function BuildSwitch({ active }: { active: "optimized" | "naive" }) {
-    const tab = (href: string, key: string, label: string, sub: string) => (
-        <Link href={href}
-            className={`flex flex-col justify-center border-b-2 px-4 py-2 transition-colors ${
-                active === key
-                    ? "border-primary text-foreground"
-                    : "border-transparent text-muted-foreground hover:text-foreground"
-            }`}>
-            <span className="text-[13px] leading-4 font-medium">{label}</span>
-            <span className="text-2xs text-muted-foreground/70">{sub}</span>
-        </Link>
-    );
+/* ── build switch ─────────────────────────────────────────
+   Not part of their UI — this demo has three builds to compare. Each pair
+   differs in exactly one thing, so the labels name that thing.             */
+export function BuildSwitch({ active }: { active: Build }) {
     return (
         <div className="flex h-12 shrink-0 items-center gap-1 border-b border-border px-4">
-            {tab("/optimized", "optimized", "Virtualised", "rows near the viewport only")}
-            {tab("/naive", "naive", "Unoptimised", "every loaded row mounted")}
+            {BUILDS.map((b) => (
+                <Link key={b.id} href={`/${b.id}`}
+                    className={`flex flex-col justify-center border-b-2 px-4 py-2 transition-colors ${
+                        active === b.id
+                            ? "border-primary text-foreground"
+                            : "border-transparent text-muted-foreground hover:text-foreground"
+                    }`}>
+                    <span className="text-[13px] leading-4 font-medium">{b.label}</span>
+                    <span className="text-2xs text-muted-foreground/70">{b.note}</span>
+                </Link>
+            ))}
         </div>
     );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { fetchHistory, WS_URL } from "./api";
+import { fetchHistory, fetchLogsBulk, WS_URL } from "./api";
 import type { ServerMessage, TraceSummary } from "./types";
 
 export type ConnectionState = "connecting" | "reconciling" | "live" | "reconnecting" | "error";
@@ -11,7 +11,10 @@ export interface StreamOptions {
     projection: "session" | "list";
     /** Milliseconds to batch incoming live messages before re-rendering. 0 renders per message. */
     batchMs: number;
-    view: "naive" | "optimized";
+    /** When set, the first load asks the unpaginated endpoint for this many
+     *  rows in one request instead of taking a cursor page. Nothing else
+     *  changes: the socket and the paging behind it are the same. */
+    bulk?: number;
     pageSize?: number;
 }
 
@@ -59,7 +62,7 @@ const NO_DELTA: InsertDelta = { addedAtTop: 0, addedAtBottom: 0, seq: 0 };
  * is a duplicate, which dedupe-by-id removes.
  */
 export function useTraceStream(options: StreamOptions): StreamState {
-    const { projection, batchMs, view, pageSize = 50 } = options;
+    const { projection, batchMs, bulk, pageSize = 50 } = options;
 
     const [traces, setTraces] = useState<TraceSummary[]>([]);
     const [connection, setConnection] = useState<ConnectionState>("connecting");
@@ -141,7 +144,7 @@ export function useTraceStream(options: StreamOptions): StreamState {
         void (async () => {
             try {
                 const page = await fetchHistory({
-                    before: oldestId.current!, limit: pageSize, projection, view,
+                    before: oldestId.current!, limit: pageSize, projection,
                 });
                 const d = insert(page.logs);
                 hasMoreRef.current = page.hasMore;
@@ -155,7 +158,7 @@ export function useTraceStream(options: StreamOptions): StreamState {
                 setLoadingOlder(false);
             }
         })();
-    }, [pageSize, projection, view, insert, commit]);
+    }, [pageSize, projection, insert, commit]);
 
     useEffect(() => {
         closedByUs.current = false;
@@ -195,7 +198,7 @@ export function useTraceStream(options: StreamOptions): StreamState {
                             for (let guard = 0; guard < 40; guard += 1) {
                                 // `after` pages come back ascending, so the last
                                 // entry is the newest and anchors the next page.
-                                const gap = await fetchHistory({ after: cursor, limit: 100, projection, view });
+                                const gap = await fetchHistory({ after: cursor, limit: 100, projection });
                                 if (gap.logs.length === 0) break;
                                 const d = insert(gap.logs);
                                 total = {
@@ -216,9 +219,12 @@ export function useTraceStream(options: StreamOptions): StreamState {
                     // that arrived in the meantime already captured in the buffer.
                     setConnection("reconciling");
                     try {
-                        const history = await fetchHistory({
-                            before: msg.lastLogId + 1, limit: pageSize, projection, view,
-                        });
+                        // The bulk build asks for everything in one request. It
+                        // still pages after that: the cursor comes from the
+                        // oldest row held, so `loadOlder` works either way.
+                        const history = bulk
+                            ? await fetchLogsBulk(bulk).then((d) => ({ logs: d.logs, hasMore: d.truncated }))
+                            : await fetchHistory({ before: msg.lastLogId + 1, limit: pageSize, projection });
                         const a = insert(history.logs);
                         const b = insert(preHistoryBuffer.current);
                         preHistoryBuffer.current = [];

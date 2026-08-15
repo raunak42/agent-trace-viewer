@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { fetchSessionPage, fetchTrace } from "@/lib/api";
+import { fetchSessionBulk, fetchSessionPage, fetchTrace } from "@/lib/api";
+import { type Build, BULK_LIMIT, bulkFetches, virtualises } from "@/lib/builds";
 import { useSessionTail } from "@/lib/useSessionTail";
 import type { Span, TraceSummary } from "@/lib/types";
 import { SessionTurn } from "./SessionTurn";
@@ -11,28 +12,31 @@ import { NewArrivalsPill } from "../NewArrivalsPill";
 const PAGE = 50;
 
 /**
- * The session transcript, in both builds.
+ * The session transcript, in all three builds.
  *
- * One component on purpose. Everything about how this talks to the server is
- * shared — the same page size, the same cursor, the same subscription, spans
- * fetched only when a turn is opened — so the two builds pull identical bytes
- * in identical requests and their counters move together.
+ * One component on purpose, so the three builds differ only where they are
+ * meant to. Two independent choices separate them: whether the client asks for
+ * everything in one request or a page at a time, and whether it mounts
+ * everything it has or only what is near the viewport.
  *
- * `virtualise` is the only difference. With it, the turns near the viewport are
- * mounted and the rest are represented by a spacer. Without it, every turn that
- * has been loaded is in the document. Keeping both in one file is what stops
- * some other difference creeping in and being mistaken for the effect of
- * virtualising.
+ *   bulk     one request, everything mounted
+ *   paged    cursor pages, everything mounted
+ *   windowed cursor pages, viewport only
+ *
+ * bulk against paged isolates the fetch; paged against windowed isolates the
+ * rendering. Everything else — the subscription, the projection, spans fetched
+ * only when a turn is opened — is shared by construction.
  */
-export function SessionView({ sessionId, anchorId, virtualise, view, onStats, onTail, onHeader }: {
+export function SessionView({ sessionId, anchorId, build, onStats, onTail, onHeader }: {
     sessionId: string;
     anchorId: string;
-    virtualise: boolean;
-    view: "optimized" | "naive";
+    build: Build;
     onStats: (s: { loaded: number; total: number; mounted: number }) => void;
     onTail: (t: { kept: number; discarded: number; bytes: number }) => void;
     onHeader: (h: { history: number | null; arrived: number; loaded: number }) => void;
 }) {
+    const virtualise = virtualises(build);
+    const bulk = bulkFetches(build);
     const [turns, setTurns] = useState<TraceSummary[]>([]);
     const [total, setTotal] = useState(0);
     const [history, setHistory] = useState<number | null>(null);
@@ -69,12 +73,31 @@ export function SessionView({ sessionId, anchorId, virtualise, view, onStats, on
         return fresh.length;
     };
 
-    /** Opens on the newest turns, where a chat opens and where new turns attach. */
+    /**
+     * Opens on the newest turns, where a chat opens and where new turns attach.
+     * The bulk build asks a different endpoint for all of them at once and then
+     * has no history left to page; the others take a page and follow a cursor.
+     */
     useEffect(() => {
         let cancelled = false;
         (async () => {
+            if (bulk) {
+                const dump = await fetchSessionBulk(sessionId, BULK_LIMIT);
+                if (cancelled) return;
+                for (const t of dump.logs) ids.current.add(t.id);
+                setTurns(dump.logs);
+                setTotal(dump.total);
+                setHistory(dump.total);
+                oldest.current = dump.logs[0]?.id;
+                newest.current = dump.logs[dump.logs.length - 1]?.id;
+                // Only what the cap cut off is left to page back to.
+                moreOlder.current = dump.truncated;
+                moreNewer.current = false;
+                setReachedStart(!dump.truncated);
+                return;
+            }
             const page = await fetchSessionPage(sessionId, {
-                before: Number.MAX_SAFE_INTEGER, limit: PAGE, projection: "list", view,
+                before: Number.MAX_SAFE_INTEGER, limit: PAGE, projection: "list",
             });
             if (cancelled) return;
             for (const t of page.logs) ids.current.add(t.id);
@@ -87,7 +110,7 @@ export function SessionView({ sessionId, anchorId, virtualise, view, onStats, on
             moreNewer.current = false;
         })();
         return () => { cancelled = true; };
-    }, [sessionId, view]);
+    }, [sessionId, bulk]);
 
     const loadOlder = useCallback(async () => {
         if (busy.current || !moreOlder.current || oldest.current === undefined) return;
@@ -96,7 +119,7 @@ export function SessionView({ sessionId, anchorId, virtualise, view, onStats, on
         heightBefore.current = scrollRef.current?.scrollHeight ?? null;
         try {
             const page = await fetchSessionPage(sessionId, {
-                before: oldest.current, limit: PAGE, projection: "list", view,
+                before: oldest.current, limit: PAGE, projection: "list",
             });
             if (page.logs.length === 0) { moreOlder.current = false; return; }
             oldest.current = page.logs[0]?.id ?? oldest.current;
@@ -107,7 +130,7 @@ export function SessionView({ sessionId, anchorId, virtualise, view, onStats, on
             setLoadingOlder(false);
             setReachedStart(!moreOlder.current);
         }
-    }, [sessionId, view]);
+    }, [sessionId]);
 
     const handleTurn = useCallback((turn: TraceSummary) => {
         if (moreNewer.current) return;
@@ -217,7 +240,7 @@ export function SessionView({ sessionId, anchorId, virtualise, view, onStats, on
         if (isOpen || spans[t._id]) return;
         setPending((p) => ({ ...p, [t._id]: true }));
         try {
-            const full = await fetchTrace(t._id, view);
+            const full = await fetchTrace(t._id);
             setSpans((s) => ({ ...s, [t._id]: full.spans }));
         } finally {
             setPending((p) => ({ ...p, [t._id]: false }));
