@@ -3,9 +3,9 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTraceStream } from "@/lib/useTraceStream";
-import { useViewMetrics, buildHistogram } from "@/lib/useViewMetrics";
+import { useViewMetrics } from "@/lib/useViewMetrics";
 import { TableHeader, TraceRow, ROW_HEIGHT } from "@/components/nl/TraceTable";
-import { TopBar, FilterBar, FooterBar, BuildSwitch } from "@/components/nl/Chrome";
+import { FooterBar, BuildSwitch } from "@/components/nl/Chrome";
 
 const PAGE_SIZE = 50;
 
@@ -40,13 +40,16 @@ export default function NaiveView() {
         if (el && el.scrollTop > el.scrollHeight - el.clientHeight - 400) stream.loadOlder();
     };
 
-    const hist = buildHistogram(stream.traces);
 
     return (
         <main className="flex h-dvh flex-col bg-background text-foreground">
             <BuildSwitch active="naive" />
+            {/* Page title, search, date range and filter chips: all faithful to
+                their layout and all inert here, since this view tails one live
+                stream rather than querying a window. Kept as a comment so the
+                chrome can come back if the demo ever needs to look complete.
             <TopBar range={hist.range} />
-            <FilterBar />
+            <FilterBar /> */}
             {/* Volume-over-time chart, commented out rather than removed.
                 The loaded window is only ever a page or two of rows — fifteen
                 seconds at five a second — so every bucket lands in the same
