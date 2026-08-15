@@ -154,7 +154,19 @@ export function TraceListView({ virtualise, view }: {
             <div className="flex min-h-0 flex-1 border-t border-border">
                 <div className="relative flex min-w-0 flex-1 flex-col">
                     <TableHeader />
-                    <div ref={scrollRef} className="nl-scroll min-h-0 flex-1 overflow-auto" data-list-root>
+                    {/* The browser also keeps the viewport still when content
+                        is inserted above it, and rows compensated for twice
+                        drift by exactly their own height on every batch. Only
+                        the unvirtualised build was affected — absolutely
+                        positioned rows are not eligible as scroll anchors — so
+                        the compensation below is the single source of truth for
+                        both. */}
+                    <div
+                        ref={scrollRef}
+                        className="nl-scroll min-h-0 flex-1 overflow-auto"
+                        style={{ overflowAnchor: "none" }}
+                        data-list-root
+                    >
                         {virtualise ? (
                             <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
                                 <div ref={topSentinel} className="absolute top-0 left-0 h-px w-full" />

@@ -244,7 +244,14 @@ export function SessionView({ sessionId, anchorId, virtualise, view, onStats, on
 
     return (
         <div className="relative h-full">
-            <div ref={scrollRef} className="nl-scroll h-full overflow-auto px-6 py-5" data-session-root>
+            {/* Same reason as the list: the prepend below is compensated for
+                explicitly, so the browser must not do it as well. */}
+            <div
+                ref={scrollRef}
+                className="nl-scroll h-full overflow-auto px-6 py-5"
+                style={{ overflowAnchor: "none" }}
+                data-session-root
+            >
                 <div className="mx-auto w-full max-w-[960px]">
                     <div ref={topSentinel} className="h-px" />
                     {loadingOlder && (
