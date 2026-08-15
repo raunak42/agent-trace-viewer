@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { fetchSessionPage } from "@/lib/api";
+import { useSessionTail } from "@/lib/useSessionTail";
 import type { Trace } from "@/lib/types";
 import { SessionTurn } from "./SessionTurn";
 
@@ -17,10 +18,11 @@ const PAGE = 50;
  *   2. every turn is mounted, and stays mounted
  *   3. every span tree is expanded, so the DOM carries the whole session
  */
-export function SessionNaive({ sessionId, anchorId, onStats }: {
+export function SessionNaive({ sessionId, anchorId, onStats, onTail }: {
     sessionId: string;
     anchorId: string;
     onStats: (s: { loaded: number; total: number; mounted: number }) => void;
+    onTail: (t: { kept: number; discarded: number; bytes: number }) => void;
 }) {
     const [turns, setTurns] = useState<Trace[]>([]);
     const [total, setTotal] = useState(0);
@@ -52,6 +54,18 @@ export function SessionNaive({ sessionId, anchorId, onStats }: {
 
         return () => { cancelled = true; };
     }, [sessionId]);
+
+    // Subscribes to everything and keeps the fraction that matches, so the
+    // socket carries every other session's full documents for nothing.
+    const tail = useSessionTail({
+        sessionId,
+        filtered: false,
+        onTurn: (turn) => {
+            setTurns((prev) => (prev.some((t) => t.id === turn.id) ? prev : [...prev, turn as Trace]));
+            setTotal((n) => n + 1);
+        },
+    });
+    useEffect(() => { onTail(tail); }, [tail, onTail]);
 
     useEffect(() => {
         onStats({ loaded: turns.length, total, mounted: turns.length });

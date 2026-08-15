@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { fetchSessionPage, fetchTrace } from "@/lib/api";
+import { useSessionTail } from "@/lib/useSessionTail";
 import type { Span, TraceSummary } from "@/lib/types";
 import { SessionTurn } from "./SessionTurn";
 
@@ -16,10 +17,11 @@ const PAGE = 50;
  *   2. only the turns near the viewport are mounted
  *   3. a turn's spans are fetched when it is opened, never up front
  */
-export function SessionOptimized({ sessionId, anchorId, onStats }: {
+export function SessionOptimized({ sessionId, anchorId, onStats, onTail }: {
     sessionId: string;
     anchorId: string;
     onStats: (s: { loaded: number; total: number; mounted: number }) => void;
+    onTail: (t: { kept: number; discarded: number; bytes: number }) => void;
 }) {
     const [turns, setTurns] = useState<TraceSummary[]>([]);
     const [total, setTotal] = useState(0);
@@ -55,6 +57,18 @@ export function SessionOptimized({ sessionId, anchorId, onStats }: {
     }, [sessionId]);
 
     useEffect(() => { void loadMore(); }, [loadMore]);
+
+    // Turns arriving live are appended in place. The subscription is scoped to
+    // this session and to summaries, so nothing arrives that has to be dropped.
+    const tail = useSessionTail({
+        sessionId,
+        filtered: true,
+        onTurn: (turn) => {
+            setTurns((prev) => (prev.some((t) => t.id === turn.id) ? prev : [...prev, turn]));
+            setTotal((n) => n + 1);
+        },
+    });
+    useEffect(() => { onTail(tail); }, [tail, onTail]);
 
     const virtualizer = useVirtualizer({
         count: turns.length,

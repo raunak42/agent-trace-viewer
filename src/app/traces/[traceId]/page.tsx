@@ -27,6 +27,7 @@ function SessionPage({ traceId }: { traceId: string }) {
         { id: "", anchor: null, error: null },
     );
     const [stats, setStats] = useState({ loaded: 0, total: 0, mounted: 0 });
+    const [tail, setTail] = useState({ kept: 0, discarded: 0, bytes: 0 });
     const metrics = useViewMetrics(build, build === "naive");
 
     useEffect(() => {
@@ -41,6 +42,7 @@ function SessionPage({ traceId }: { traceId: string }) {
     const error = loaded.id === traceId ? loaded.error : null;
 
     const onStats = useCallback((s: typeof stats) => setStats(s), []);
+    const onTail = useCallback((t: typeof tail) => setTail(t), []);
 
     const stamp = anchor
         ? new Date(anchor.ts).toLocaleString("en-GB", {
@@ -105,10 +107,10 @@ function SessionPage({ traceId }: { traceId: string }) {
                 {error && <div className="p-6 text-[13px] text-destructive">{error}</div>}
                 {!anchor && !error && <div className="p-6 text-[13px] text-muted-foreground">Loading session…</div>}
                 {anchor && build === "optimized" && (
-                    <SessionOptimized sessionId={anchor.sessionId} anchorId={anchor._id} onStats={onStats} />
+                    <SessionOptimized sessionId={anchor.sessionId} anchorId={anchor._id} onStats={onStats} onTail={onTail} />
                 )}
                 {anchor && build === "naive" && (
-                    <SessionNaive sessionId={anchor.sessionId} anchorId={anchor._id} onStats={onStats} />
+                    <SessionNaive sessionId={anchor.sessionId} anchorId={anchor._id} onStats={onStats} onTail={onTail} />
                 )}
             </div>
 
@@ -117,7 +119,10 @@ function SessionPage({ traceId }: { traceId: string }) {
                    ["turns mounted", stats.mounted],
                    ["dom nodes", metrics.domNodes.toLocaleString()],
                    ["fetched", `${(metrics.bytes / 1024).toFixed(0)} KB`],
-                   ["requests", metrics.requests]] as const).map(([k, v]) => (
+                   ["requests", metrics.requests],
+                   ["live kept", tail.kept],
+                   ["live dropped", tail.discarded],
+                   ["socket", `${(tail.bytes / 1024).toFixed(0)} KB`]] as const).map(([k, v]) => (
                     <span key={k} className="flex items-baseline gap-1.5 whitespace-nowrap">
                         <span className="text-2xs text-muted-foreground/70 uppercase">{k}</span>
                         <span className="font-mono text-xs tabular-nums text-foreground/85">{v}</span>
