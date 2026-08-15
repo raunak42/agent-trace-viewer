@@ -23,11 +23,9 @@ const PAGE = 50;
  *   2. only the turns near the viewport are mounted
  *   3. a turn's spans are fetched when it is opened, never up front
  */
-export function SessionOptimized({ sessionId, anchorId, anchorSeq, onStats, onTail }: {
+export function SessionOptimized({ sessionId, anchorId, onStats, onTail }: {
     sessionId: string;
     anchorId: string;
-    /** Numeric id of the turn that was clicked; the first page ends here. */
-    anchorSeq: number;
     onStats: (s: { loaded: number; total: number; mounted: number }) => void;
     onTail: (t: { kept: number; discarded: number; bytes: number }) => void;
 }) {
@@ -61,12 +59,18 @@ export function SessionOptimized({ sessionId, anchorId, anchorSeq, onStats, onTa
         return fresh.length;
     };
 
-    /** First page ends at the turn we arrived on, so the view opens there. */
+    /**
+     * Opens on the newest turns, not on the one that was clicked. A thread is
+     * read where it currently is, the way a chat opens on the latest message —
+     * and anchoring to an older turn strands the live end behind hundreds of
+     * unloaded turns, so nothing arriving could be shown. The clicked turn is
+     * still highlighted once scrolling back reaches it.
+     */
     useEffect(() => {
         let cancelled = false;
         (async () => {
             const page = await fetchSessionPage(sessionId, {
-                before: anchorSeq + 1, limit: PAGE, projection: "list", view: "optimized",
+                before: Number.MAX_SAFE_INTEGER, limit: PAGE, projection: "list", view: "optimized",
             });
             if (cancelled) return;
             for (const t of page.logs) ids.current.add(t.id);
@@ -74,11 +78,12 @@ export function SessionOptimized({ sessionId, anchorId, anchorSeq, onStats, onTa
             setTotal(page.total);
             oldest.current = page.logs[0]?.id;
             newest.current = page.logs[page.logs.length - 1]?.id;
-            moreOlder.current = (page.logs[0]?.id ?? 0) > 0 && page.logs.length === PAGE;
-            moreNewer.current = (newest.current ?? 0) < anchorSeq + PAGE || page.hasMore;
+            moreOlder.current = page.logs.length === PAGE;
+            // The last page is loaded, so live turns attach immediately.
+            moreNewer.current = false;
         })();
         return () => { cancelled = true; };
-    }, [sessionId, anchorSeq]);
+    }, [sessionId]);
 
     const loadOlder = useCallback(async () => {
         if (busy.current || !moreOlder.current || oldest.current === undefined) return;

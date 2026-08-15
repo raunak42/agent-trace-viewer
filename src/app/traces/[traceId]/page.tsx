@@ -107,7 +107,7 @@ function SessionPage({ traceId }: { traceId: string }) {
                 {error && <div className="p-6 text-[13px] text-destructive">{error}</div>}
                 {!anchor && !error && <div className="p-6 text-[13px] text-muted-foreground">Loading session…</div>}
                 {anchor && build === "optimized" && (
-                    <SessionOptimized sessionId={anchor.sessionId} anchorId={anchor._id} anchorSeq={anchor.id} onStats={onStats} onTail={onTail} />
+                    <SessionOptimized sessionId={anchor.sessionId} anchorId={anchor._id} onStats={onStats} onTail={onTail} />
                 )}
                 {anchor && build === "naive" && (
                     <SessionNaive sessionId={anchor.sessionId} anchorId={anchor._id} onStats={onStats} onTail={onTail} />
