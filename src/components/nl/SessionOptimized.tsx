@@ -59,6 +59,9 @@ export function SessionOptimized({ sessionId, anchorId, onStats, onTail, onHeade
     // bound to something that could never update it.
     const [loadingOlder, setLoadingOlder] = useState(false);
     const [reachedStart, setReachedStart] = useState(false);
+    /** Whether the top of the loaded range is in view, so a finished request
+     *  can decide whether another is wanted. */
+    const atTop = useRef(false);
     const moreNewer = useRef(true);
     const didLand = useRef(false);
     /** Height before a prepend, so the viewport can be held in place after it. */
@@ -206,7 +209,8 @@ export function SessionOptimized({ sessionId, anchorId, onStats, onTail, onHeade
         const root = scrollRef.current;
         if (!root) return;
         const top = new IntersectionObserver(([e]) => {
-            if (e?.isIntersecting) void loadOlder();
+            atTop.current = e?.isIntersecting ?? false;
+            if (atTop.current) void loadOlder();
         }, { root, rootMargin: "600px 0px 0px 0px" });
         // No margin: following the end stops the moment the transcript is
         // scrolled, rather than after 600px of tolerance.
@@ -239,6 +243,19 @@ export function SessionOptimized({ sessionId, anchorId, onStats, onTail, onHeade
         root.addEventListener("scroll", sync, { passive: true });
         return () => root.removeEventListener("scroll", sync);
     }, []);
+
+    // An observer reports changes in visibility, so a request that starts while
+    // the top is already in view gets no second event to follow it: the guard
+    // drops whatever arrives mid-flight and the sentinel never leaves the
+    // viewport to re-enter it. Paging then stops for good, part way through a
+    // conversation, with nothing to say it had. This picks it up again once a
+    // request finishes. The scroll check ends it: prepending pushes the
+    // viewport down by the height added, so the top is no longer near.
+    useEffect(() => {
+        if (loadingOlder || reachedStart || !atTop.current) return;
+        const el = scrollRef.current;
+        if (el && el.scrollTop < 600) void loadOlder();
+    }, [loadingOlder, reachedStart, turns.length, loadOlder]);
 
     const items = virtualizer.getVirtualItems();
     useEffect(() => {
