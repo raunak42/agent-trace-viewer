@@ -53,6 +53,12 @@ export function SessionOptimized({ sessionId, anchorId, onStats, onTail, onHeade
     const oldest = useRef<number | undefined>(undefined);
     const newest = useRef<number | undefined>(undefined);
     const moreOlder = useRef(true);
+    // The refs above are guards and have to be read synchronously; these mirror
+    // them as state so the view can actually say what is happening. A ref read
+    // during render does not re-render when it changes, so the notice below was
+    // bound to something that could never update it.
+    const [loadingOlder, setLoadingOlder] = useState(false);
+    const [reachedStart, setReachedStart] = useState(false);
     const moreNewer = useRef(true);
     const didLand = useRef(false);
     /** Height before a prepend, so the viewport can be held in place after it. */
@@ -97,6 +103,7 @@ export function SessionOptimized({ sessionId, anchorId, onStats, onTail, onHeade
     const loadOlder = useCallback(async () => {
         if (busy.current || !moreOlder.current || oldest.current === undefined) return;
         busy.current = true;
+        setLoadingOlder(true);
         heightBefore.current = scrollRef.current?.scrollHeight ?? null;
         try {
             const page = await fetchSessionPage(sessionId, {
@@ -108,6 +115,8 @@ export function SessionOptimized({ sessionId, anchorId, onStats, onTail, onHeade
             if (addTurns(page.logs, "older") === 0) moreOlder.current = false;
         } finally {
             busy.current = false;
+            setLoadingOlder(false);
+            setReachedStart(!moreOlder.current);
         }
     }, [sessionId]);
 
@@ -267,8 +276,15 @@ export function SessionOptimized({ sessionId, anchorId, onStats, onTail, onHeade
             <div ref={scrollRef} className="nl-scroll h-full overflow-auto px-6 py-5" data-session-root>
                 <div className="mx-auto w-full max-w-[960px]">
                     <div ref={topSentinel} className="h-px" />
-                    {moreOlder.current && (
+                    {/* Only while a request is actually in flight. This used to
+                        track whether earlier turns exist at all, so it sat there
+                        for the whole session — reading as a stall when each page
+                        in fact takes about a tenth of a second. */}
+                    {loadingOlder && (
                         <div className="py-3 text-center text-2xs text-muted-foreground">loading earlier turns…</div>
+                    )}
+                    {reachedStart && !loadingOlder && (
+                        <div className="py-3 text-center text-2xs text-muted-foreground/60">start of conversation</div>
                     )}
                     <div style={{ height: totalSize, position: "relative" }}>
                         {items.map((item) => {
