@@ -210,9 +210,11 @@ export function SessionOptimized({ sessionId, anchorId, onStats, onTail }: {
         }
     };
 
+    // Instant for the same reason as the list: turns arriving during a smooth
+    // scroll move the target while the animation is still chasing it.
     const jumpToLatest = () => {
         const el = scrollRef.current;
-        if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+        if (el) el.scrollTop = el.scrollHeight;
         setNewCount(0);
         atBottom.current = true;
     };

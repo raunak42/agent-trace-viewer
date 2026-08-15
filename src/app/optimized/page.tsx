@@ -57,15 +57,32 @@ export default function OptimizedView() {
     }, []);
 
     // The top is where new rows land, so it is what "am I following?" means.
+    // No margin: following ends the moment the list is scrolled at all, rather
+    // than after some tolerance, so a deliberate scroll is never overridden.
     useEffect(() => {
         const el = topSentinel.current, root = scrollRef.current;
         if (!el || !root) return;
         const io = new IntersectionObserver(([e]) => {
             atTop.current = e?.isIntersecting ?? false;
             if (atTop.current) setNewCount(0);
-        }, { root, rootMargin: "200px 0px 0px 0px", threshold: 0 });
+        }, { root, threshold: 0 });
         io.observe(el);
         return () => io.disconnect();
+    }, []);
+
+    // The observer resolves a frame later, which is long enough for a batch to
+    // land and snap the reader back to the top mid-gesture. This settles it
+    // synchronously; it is passive and writes a ref, so it costs no render.
+    useEffect(() => {
+        const root = scrollRef.current;
+        if (!root) return;
+        const sync = () => {
+            const following = root.scrollTop <= 0;
+            atTop.current = following;
+            if (following) setNewCount(0);
+        };
+        root.addEventListener("scroll", sync, { passive: true });
+        return () => root.removeEventListener("scroll", sync);
     }, []);
 
     // Keep paging while the bottom is still in view after a page resolves.
@@ -90,8 +107,12 @@ export default function OptimizedView() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [stream.delta.seq]);
 
+    // Instant, not smooth: a smooth scroll passes through non-zero offsets, and
+    // the listener above reads each of those as the reader taking control, so
+    // the jump cancels itself. Rows arriving mid-animation fight it too.
     const jumpToNewest = () => {
-        virtualizer.scrollToIndex(0, { align: "start", behavior: "smooth" });
+        const el = scrollRef.current;
+        if (el) el.scrollTop = 0;
         setNewCount(0);
         atTop.current = true;
     };
