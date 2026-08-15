@@ -4,7 +4,6 @@ import { Suspense, use, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { fetchSessionList, fetchSessionPage, fetchTrace } from "@/lib/api";
-import { useViewMetrics } from "@/lib/useViewMetrics";
 import type { Trace } from "@/lib/types";
 import { SessionOptimized } from "@/components/nl/SessionOptimized";
 import { SessionNaive } from "@/components/nl/SessionNaive";
@@ -37,7 +36,6 @@ function SessionPage({ traceId }: { traceId: string }) {
         { history: null, arrived: 0, loaded: 0 },
     );
     const rate = useArrivalRate(header.arrived);
-    const metrics = useViewMetrics(build, build === "naive");
 
     useEffect(() => {
         let cancelled = false;
@@ -197,26 +195,6 @@ function SessionPage({ traceId }: { traceId: string }) {
                 )}
             </div>
 
-            <div className="flex h-12 shrink-0 items-center justify-end gap-5 overflow-x-auto border-t border-border px-6">
-                {([["on screen", stats.mounted],
-                   ["page elements", metrics.domNodes.toLocaleString()],
-                   ["downloaded", `${(metrics.bytes / 1024).toFixed(0)} KB`],
-                   ["requests", metrics.requests],
-                   ["live used", tail.kept],
-                   ["live discarded", tail.discarded],
-                   ["over socket", `${(tail.bytes / 1024).toFixed(0)} KB`]] as const).map(([k, v]) => (
-                    <span key={k} className="flex items-baseline gap-1.5 whitespace-nowrap">
-                        <span className="text-2xs text-muted-foreground/70 uppercase">{k}</span>
-                        <span className="font-mono text-xs tabular-nums text-foreground/85">{v}</span>
-                    </span>
-                ))}
-                {build === "naive" && (
-                    <span className="flex items-baseline gap-1.5">
-                        <span className="text-2xs text-muted-foreground/70 uppercase">fps</span>
-                        <span className="font-mono text-xs tabular-nums text-foreground/85">{metrics.fps}</span>
-                    </span>
-                )}
-            </div>
         </main>
     );
 }

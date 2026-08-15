@@ -3,7 +3,7 @@
 import Link from "next/link";
 import {
     TracesIcon, SearchIcon, CalendarIcon, CloseIcon, ChevronDownIcon,
-    FunnelIcon, PlusIcon, SlidersIcon, ChevronLeftIcon, ChevronRightIcon,
+    FunnelIcon, PlusIcon, SlidersIcon,
 } from "./icons";
 
 /* ── top bar ──────────────────────────────────────────────────────────────
@@ -101,36 +101,6 @@ export function Histogram({ buckets, labels }: { buckets: number[]; labels: stri
    Their pagination bar, reused as the live status/metrics strip: this list
    tails a stream rather than paging, so the range readout becomes the store
    counters that make the two builds comparable.                             */
-export function FooterBar({
-    rendered, domNodes, commits, bytes, requests, connection, fps,
-}: {
-    rendered: number; domNodes: number; commits: number;
-    bytes: number; requests: number; connection: string; fps?: number;
-}) {
-    const stat = (label: string, value: string | number) => (
-        <span className="flex items-baseline gap-1.5 whitespace-nowrap">
-            <span className="text-2xs text-muted-foreground/70 uppercase">{label}</span>
-            <span className="font-mono text-xs tabular-nums text-foreground/85">{value}</span>
-        </span>
-    );
-    return (
-        <div className="flex h-11 shrink-0 items-center justify-end gap-5 overflow-x-auto border-t border-border bg-background px-6">
-            {/* What this build costs to show the same data. Labelled in plain
-                words: the header above already answers how much there is. */}
-            {stat("on screen", rendered.toLocaleString())}
-            {stat("page elements", domNodes.toLocaleString())}
-            {stat("re-renders", commits.toLocaleString())}
-            {stat("downloaded", `${(bytes / 1024).toFixed(0)} KB`)}
-            {stat("requests", requests)}
-            {fps !== undefined && stat("fps", fps)}
-            <span className="flex items-center gap-1.5 whitespace-nowrap">
-                <span className={`size-1.5 rounded-full ${connection === "live" ? "bg-success" : "bg-muted-foreground/40"}`} />
-                <span className="text-2xs text-muted-foreground uppercase">{connection}</span>
-            </span>
-        </div>
-    );
-}
-
 /* ── build switch ─────────────────────────────────────────────────────────
    Not part of their UI — this demo has two builds to compare.              */
 export function BuildSwitch({ active }: { active: "optimized" | "naive" }) {

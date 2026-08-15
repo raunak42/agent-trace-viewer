@@ -41,7 +41,7 @@ const fmt = (n: number) => n.toLocaleString();
  * from that first fetch. The snapshot was a detail of when the page loaded, and
  * showing it alongside the running total gave two numbers for one question.
  */
-export function StreamStats({ unit, history, arrived, loaded, rate, note }: {
+export function StreamStats({ unit, history, arrived, loaded, rate, connection, note }: {
     /** "traces" or "turns" — what one item is on this page. */
     unit: string;
     /** How many existed server-side when this page first fetched. Added to
@@ -52,6 +52,10 @@ export function StreamStats({ unit, history, arrived, loaded, rate, note }: {
     /** How many this page has actually pulled down. */
     loaded: number;
     rate: number;
+    /** Socket state. Omitted where the page already reports liveness of its
+     *  own — the transcript's session pill says whether that thread is still
+     *  receiving, which is a narrower claim than the connection being up. */
+    connection?: string;
     note?: string;
 }) {
     const cell = (label: string, value: string, sub: string, accent = false) => (
@@ -73,7 +77,14 @@ export function StreamStats({ unit, history, arrived, loaded, rate, note }: {
             {cell("arriving", `${rate.toFixed(1)}/s`, `new ${unit} per second`)}
             <span className="h-9 w-px shrink-0 bg-border" />
             {cell("loaded", fmt(loaded), `${unit} pulled by this page`)}
-            {note && <span className="ml-auto pr-6 text-2xs text-muted-foreground/60">{note}</span>}
+            {connection && (
+                <span className="ml-auto flex shrink-0 items-center gap-2 pr-6">
+                    <span className={`size-2 rounded-full ${
+                        connection === "live" ? "animate-pulse bg-success" : "bg-muted-foreground/40"}`} />
+                    <span className="text-xs tracking-wide text-muted-foreground uppercase">{connection}</span>
+                </span>
+            )}
+            {note && !connection && <span className="ml-auto pr-6 text-2xs text-muted-foreground/60">{note}</span>}
         </div>
     );
 }

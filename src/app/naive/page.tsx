@@ -3,11 +3,10 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTraceStream } from "@/lib/useTraceStream";
-import { useViewMetrics } from "@/lib/useViewMetrics";
 import { fetchStats } from "@/lib/api";
 import { TableHeader, TraceRow, ROW_HEIGHT } from "@/components/nl/TraceTable";
 import { NewArrivalsPill } from "@/components/NewArrivalsPill";
-import { FooterBar, BuildSwitch } from "@/components/nl/Chrome";
+import { BuildSwitch } from "@/components/nl/Chrome";
 import { StreamStats, useArrivalRate } from "@/components/nl/StreamStats";
 
 const PAGE_SIZE = 50;
@@ -31,8 +30,6 @@ export default function NaiveView() {
         return () => { cancelled = true; };
     }, []);
     const rate = useArrivalRate(stream.liveCount);
-
-    const metrics = useViewMetrics("naive", true);
     const router = useRouter();
     const scrollRef = useRef<HTMLDivElement>(null);
     const atTop = useRef(true);
@@ -89,6 +86,7 @@ export default function NaiveView() {
                 arrived={stream.liveCount}
                 loaded={stream.traces.length}
                 rate={rate}
+                connection={stream.connection}
             />
             <BuildSwitch active="naive" />
             {/* Page title, search, date range and filter chips: all faithful to
@@ -127,15 +125,6 @@ export default function NaiveView() {
                     <NewArrivalsPill count={newCount} onClick={jumpToNewest} />
                 </div>
             </div>
-            <FooterBar
-                rendered={stream.traces.length}
-                domNodes={metrics.domNodes}
-                commits={stream.commits}
-                bytes={metrics.bytes}
-                requests={metrics.requests}
-                connection={stream.connection}
-                fps={metrics.fps}
-            />
         </main>
     );
 }
