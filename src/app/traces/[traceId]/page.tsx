@@ -8,7 +8,7 @@ import type { Trace } from "@/lib/types";
 import { SessionView } from "@/components/nl/SessionView";
 import { StreamStats, useArrivalRate } from "@/components/nl/StreamStats";
 import { ChevronLeftIcon } from "@/components/nl/icons";
-import { type Build, BUILDS, isBuild } from "@/lib/builds";
+import { type Build, SESSION_BUILDS, isBuild } from "@/lib/builds";
 
 
 /** capacity ÷ ingest rate, i.e. how long a trace stays resolvable. */
@@ -30,7 +30,7 @@ function SessionPage({ traceId }: { traceId: string }) {
     const [loaded, setLoaded] = useState<{ id: string; anchor: Trace | null; error: string | null }>(
         { id: "", anchor: null, error: null },
     );
-    const [stats, setStats] = useState({ loaded: 0, total: 0, mounted: 0 });
+    const [stats, setStats] = useState({ loaded: 0, total: 0, mounted: 0, fetched: 0 });
     const [tail, setTail] = useState({ kept: 0, discarded: 0, bytes: 0 });
     const [header, setHeader] = useState<{ history: number | null; arrived: number; loaded: number }>(
         { history: null, arrived: 0, loaded: 0 },
@@ -128,10 +128,16 @@ function SessionPage({ traceId }: { traceId: string }) {
                 arrived={header.arrived}
                 loaded={header.loaded}
                 rate={rate}
-                note="one conversation"
+                note={
+                    // The fan-out build's cost is the request count, which no
+                    // turn counter shows; this is the only place it is visible.
+                    build === "fanout" && stats.loaded > 0
+                        ? `${stats.fetched.toLocaleString()} / ${stats.loaded.toLocaleString()} turns fetched`
+                        : "one conversation"
+                }
             />
             <div className="flex h-12 shrink-0 items-center gap-1 border-b border-border px-4">
-                {BUILDS.map((b) => tab(b.id, b.label, b.note))}
+                {SESSION_BUILDS.map((b) => tab(b.id, b.label, b.note))}
             </div>
 
             <header className="flex h-[68px] shrink-0 items-center justify-between border-b border-border px-4">

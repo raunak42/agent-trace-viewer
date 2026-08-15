@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { fetchSessionBulk, fetchSessionPage, fetchTrace } from "@/lib/api";
-import { type Build, BULK_LIMIT, bulkFetches, virtualises } from "@/lib/builds";
+import { type Build, BULK_LIMIT, FANOUT_LIMIT, bulkFetches, fansOut, virtualises } from "@/lib/builds";
 import { useSessionTail } from "@/lib/useSessionTail";
 import type { Span, TraceSummary } from "@/lib/types";
 import { SessionTurn } from "./SessionTurn";
@@ -14,29 +14,29 @@ const PAGE = 50;
 /**
  * The session transcript, in all three builds.
  *
- * One component on purpose, so the three builds differ only where they are
- * meant to. Two independent choices separate them: whether the client asks for
- * everything in one request or a page at a time, and whether it mounts
- * everything it has or only what is near the viewport.
+ * One component on purpose, so the builds differ only where they are meant to.
  *
+ *   fanout   an index, then one request per turn, everything mounted
  *   bulk     one request, everything mounted
  *   paged    cursor pages, everything mounted
  *   windowed cursor pages, viewport only
  *
- * bulk against paged isolates the fetch; paged against windowed isolates the
- * rendering. Everything else — the subscription, the projection, spans fetched
- * only when a turn is opened — is shared by construction.
+ * fanout against bulk isolates the request count; bulk against paged isolates
+ * how much is asked for; paged against windowed isolates how much is mounted.
+ * Everything else — the subscription, the projection, the paging behind the
+ * first load — is shared by construction.
  */
 export function SessionView({ sessionId, anchorId, build, onStats, onTail, onHeader }: {
     sessionId: string;
     anchorId: string;
     build: Build;
-    onStats: (s: { loaded: number; total: number; mounted: number }) => void;
+    onStats: (s: { loaded: number; total: number; mounted: number; fetched: number }) => void;
     onTail: (t: { kept: number; discarded: number; bytes: number }) => void;
     onHeader: (h: { history: number | null; arrived: number; loaded: number }) => void;
 }) {
     const virtualise = virtualises(build);
     const bulk = bulkFetches(build);
+    const fanout = fansOut(build);
     const [turns, setTurns] = useState<TraceSummary[]>([]);
     const [total, setTotal] = useState(0);
     const [history, setHistory] = useState<number | null>(null);
@@ -47,6 +47,8 @@ export function SessionView({ sessionId, anchorId, build, onStats, onTail, onHea
     const [newCount, setNewCount] = useState(0);
     const [loadingOlder, setLoadingOlder] = useState(false);
     const [reachedStart, setReachedStart] = useState(false);
+    /** How many of the fan-out build's per-turn requests have come back. */
+    const [prefetched, setPrefetched] = useState(0);
     const counted = useRef(0);
 
     const scrollRef = useRef<HTMLDivElement>(null);
@@ -56,6 +58,9 @@ export function SessionView({ sessionId, anchorId, build, onStats, onTail, onHea
     const atTop = useRef(false);
 
     const busy = useRef(false);
+    /** The fan-out is kicked off once, not on every turn that arrives after. */
+    const prefetchStarted = useRef(false);
+    const prefetchDropped = useRef(false);
     const oldest = useRef<number | undefined>(undefined);
     const newest = useRef<number | undefined>(undefined);
     const moreOlder = useRef(true);
@@ -63,6 +68,8 @@ export function SessionView({ sessionId, anchorId, build, onStats, onTail, onHea
     const didLand = useRef(false);
     /** Height before a prepend, so the viewport can be held in place after it. */
     const heightBefore = useRef<number | null>(null);
+
+    useEffect(() => () => { prefetchDropped.current = true; }, []);
 
     const ids = useRef<Set<number>>(new Set());
     const addTurns = (incoming: TraceSummary[], side: "older" | "newer") => {
@@ -80,9 +87,10 @@ export function SessionView({ sessionId, anchorId, build, onStats, onTail, onHea
      */
     useEffect(() => {
         let cancelled = false;
+        prefetchStarted.current = false;
         (async () => {
             if (bulk) {
-                const dump = await fetchSessionBulk(sessionId, BULK_LIMIT);
+                const dump = await fetchSessionBulk(sessionId, fanout ? FANOUT_LIMIT : BULK_LIMIT);
                 if (cancelled) return;
                 for (const t of dump.logs) ids.current.add(t.id);
                 setTurns(dump.logs);
@@ -110,7 +118,42 @@ export function SessionView({ sessionId, anchorId, build, onStats, onTail, onHea
             moreNewer.current = false;
         })();
         return () => { cancelled = true; };
-    }, [sessionId, bulk]);
+    }, [sessionId, bulk, fanout]);
+
+    /**
+     * The fan-out build, and the whole reason it exists.
+     *
+     * app.neatlogs.com's transcript reads the session to get its turns and then
+     * issues three more requests for each one — the turn document, its
+     * evaluations, its comments. Measured on a 39-turn session that is 117
+     * requests, sustained at 16.6/s, averaging 449 ms each, for 18.5 KB of
+     * data. The reasoning is sound in isolation: prefetch per turn and opening
+     * one is instant. The cost is that the wait scales with turns rather than
+     * bytes, and at a few thousand turns the page spends minutes fetching
+     * almost nothing.
+     *
+     * This does the same with one request per turn instead of three. The
+     * constant does not change the shape. Nothing is batched and each response
+     * writes state on its own, because that is what a per-row query hook does
+     * and batching it would be the fix rather than the demonstration.
+     */
+    useEffect(() => {
+        if (!fanout || turns.length === 0 || prefetchStarted.current) return;
+        prefetchStarted.current = true;
+        for (const t of turns) {
+            void fetchTrace(t._id)
+                .then((full) => {
+                    if (prefetchDropped.current) return;
+                    setSpans((prev) => ({ ...prev, [t._id]: full.spans }));
+                    setPrefetched((n) => n + 1);
+                })
+                .catch(() => { if (!prefetchDropped.current) setPrefetched((n) => n + 1); });
+        }
+        // No cleanup that cancels. This effect re-runs whenever `turns` changes
+        // identity, which live is every 200ms, and a cleanup would abandon the
+        // fan-out a second after starting it — leaving the build looking cheap
+        // for the wrong reason. It is dropped on unmount instead.
+    }, [fanout, turns]);
 
     const loadOlder = useCallback(async () => {
         if (busy.current || !moreOlder.current || oldest.current === undefined) return;
@@ -228,8 +271,8 @@ export function SessionView({ sessionId, anchorId, build, onStats, onTail, onHea
     const items = virtualizer.getVirtualItems();
     const mounted = virtualise ? items.length : turns.length;
     useEffect(() => {
-        onStats({ loaded: turns.length, total, mounted });
-    }, [turns.length, total, mounted, onStats]);
+        onStats({ loaded: turns.length, total, mounted, fetched: prefetched });
+    }, [turns.length, total, mounted, prefetched, onStats]);
     useEffect(() => {
         onHeader({ history, arrived, loaded: turns.length });
     }, [history, arrived, turns.length, onHeader]);
