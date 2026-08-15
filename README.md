@@ -1,36 +1,72 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# neatlog-viewer
 
-## Getting Started
-
-First, run the development server:
+A trace/log viewer for [neatlog-stream](https://github.com/raunak42/neatlog-stream):
+scrollable history plus a live tail, in two versions so the cost of *not*
+optimising is visible side by side.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+npm run dev     # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Points at `https://onnboard.com` by default; override with `NEXT_PUBLIC_API_BASE`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Route | |
+|---|---|
+| `/optimized` | virtualised · `projection=list` · batched updates |
+| `/naive` | every row mounted · full documents · a commit per message |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Both views share **identical reconciliation logic**. Correctness is not the
+variable being demonstrated — rendering and payload are.
 
-## Learn More
+## Reconciliation (Approach A)
 
-To learn more about Next.js, take a look at the following resources:
+The ordering matters, and it is the same in both views:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1. Open the WebSocket **first**
+2. On the `connected` handshake, record `lastLogId`
+3. Buffer every `log` message that arrives from here on — render nothing yet
+4. *Then* fetch `GET /api/logs?before=<lastLogId + 1>&limit=50`
+5. Merge history with the buffer, dedupe by `id`, sort — that is the initial store
+6. Switch to live mode: subsequent messages append directly
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+REST-first would leave a window between the history response and the socket
+opening in which entries are silently lost. This ordering cannot lose one; the
+worst case is a duplicate, which dedupe-by-id removes.
 
-## Deploy on Vercel
+**On reconnect** the handshake's `lastLogId` is compared against the newest id
+held locally, and only the gap is backfilled via `?after=`, rather than
+reloading everything.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+**On a changed `bootId`** the store is cleared entirely. A different boot id
+means the server restarted or this is a different replica, so local ids no
+longer refer to the same entries — cursors are meaningless and merging would
+corrupt the view.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## What `/optimized` does differently
+
+**Virtualised list** — `@tanstack/react-virtual` mounts roughly 30–50 rows plus
+overscan. Rows outside the window are genuinely unmounted, not hidden with CSS.
+
+**`projection=list`** — the list needs id, name, latency, status and token
+counts. Spans are ~90% of a trace document and are never fetched for a row:
+**0.6 KB per row instead of 5.2 KB**. Full spans load on demand from
+`GET /api/traces/:traceId` when a row is opened.
+
+**Batched live updates** — messages arriving in a burst are collected for 150 ms
+and flushed once, so N messages cost one React commit rather than N.
+
+**Sentinel-based stick-to-bottom** — an `IntersectionObserver` on a bottom
+sentinel answers "am I at the bottom", instead of reading `scrollTop` on every
+scroll event. Auto-scroll applies only when the user is already at the bottom;
+otherwise a **↓ N new** pill appears and the view stays put.
+
+**rAF-throttled pagination** — scrolling near the top triggers
+`?before=<oldest loaded id>`, throttled so a fast scroll cannot queue dozens of
+overlapping fetches. Stops at `hasMore: false`.
+
+## Measuring it
+
+Both views render the same metrics bar: rows in the store, rows in the DOM, DOM
+node count, React commits, and bytes fetched. `/naive` also shows a live FPS
+counter. Scroll up through a few thousand entries on each and compare.
