@@ -102,7 +102,9 @@ export function Histogram({ buckets, labels }: { buckets: number[]; labels: stri
    tails a stream rather than paging, so the range readout becomes the store
    counters that make the two builds comparable.                             */
 /* ── build switch ─────────────────────────────────────────────────────────
-   Not part of their UI — this demo has two builds to compare.              */
+   Not part of their UI — this demo has two builds to compare. They differ in
+   one thing, so the labels name that one thing: everything about how either
+   talks to the server is identical.                                        */
 export function BuildSwitch({ active }: { active: "optimized" | "naive" }) {
     const tab = (href: string, key: string, label: string, sub: string) => (
         <Link href={href}
@@ -117,8 +119,8 @@ export function BuildSwitch({ active }: { active: "optimized" | "naive" }) {
     );
     return (
         <div className="flex h-12 shrink-0 items-center gap-1 border-b border-border px-4">
-            {tab("/optimized", "optimized", "Virtualised", "windowed · list projection · batched")}
-            {tab("/naive", "naive", "Unoptimised", "full DOM · full documents · unbatched")}
+            {tab("/optimized", "optimized", "Virtualised", "rows near the viewport only")}
+            {tab("/naive", "naive", "Unoptimised", "every loaded row mounted")}
         </div>
     );
 }

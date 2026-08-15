@@ -5,8 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { fetchSessionList, fetchSessionPage, fetchTrace } from "@/lib/api";
 import type { Trace } from "@/lib/types";
-import { SessionOptimized } from "@/components/nl/SessionOptimized";
-import { SessionNaive } from "@/components/nl/SessionNaive";
+import { SessionView } from "@/components/nl/SessionView";
 import { StreamStats, useArrivalRate } from "@/components/nl/StreamStats";
 import { ChevronLeftIcon } from "@/components/nl/icons";
 
@@ -130,8 +129,8 @@ function SessionPage({ traceId }: { traceId: string }) {
                 note="one conversation"
             />
             <div className="flex h-12 shrink-0 items-center gap-1 border-b border-border px-4">
-                {tab("optimized", "Virtualised", "list projection · spans on open")}
-                {tab("naive", "Unoptimised", "every turn · full documents")}
+                {tab("optimized", "Virtualised", "turns near the viewport only")}
+                {tab("naive", "Unoptimised", "every loaded turn mounted")}
             </div>
 
             <header className="flex h-[68px] shrink-0 items-center justify-between border-b border-border px-4">
@@ -187,11 +186,17 @@ function SessionPage({ traceId }: { traceId: string }) {
                     </div>
                 )}
                 {!anchor && !error && <div className="p-6 text-[13px] text-muted-foreground">Loading session…</div>}
-                {anchor && build === "optimized" && (
-                    <SessionOptimized sessionId={anchor.sessionId} anchorId={anchor._id} onStats={onStats} onTail={onTail} onHeader={onHeader} />
-                )}
-                {anchor && build === "naive" && (
-                    <SessionNaive sessionId={anchor.sessionId} anchorId={anchor._id} onStats={onStats} onTail={onTail} onHeader={onHeader} />
+                {anchor && (
+                    <SessionView
+                        key={build}
+                        sessionId={anchor.sessionId}
+                        anchorId={anchor._id}
+                        virtualise={build === "optimized"}
+                        view={build}
+                        onStats={onStats}
+                        onTail={onTail}
+                        onHeader={onHeader}
+                    />
                 )}
             </div>
 
