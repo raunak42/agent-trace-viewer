@@ -183,14 +183,33 @@ export function SessionOptimized({ sessionId, anchorId, onStats, onTail }: {
         const top = new IntersectionObserver(([e]) => {
             if (e?.isIntersecting) void loadOlder();
         }, { root, rootMargin: "600px 0px 0px 0px" });
+        // No margin: following the end stops the moment the transcript is
+        // scrolled, rather than after 600px of tolerance.
         const bottom = new IntersectionObserver(([e]) => {
             atBottom.current = e?.isIntersecting ?? false;
             if (atBottom.current) { setNewCount(0); void loadNewer(); }
-        }, { root, rootMargin: "0px 0px 600px 0px" });
+        }, { root });
         if (topSentinel.current) top.observe(topSentinel.current);
         if (bottomSentinel.current) bottom.observe(bottomSentinel.current);
         return () => { top.disconnect(); bottom.disconnect(); };
     }, [loadOlder, loadNewer]);
+
+    // The observer resolves a frame later, which is long enough for an arriving
+    // turn to pull the reader back mid-gesture. This settles it synchronously;
+    // passive, and writes a ref, so it costs no render. Turn heights vary and
+    // the content grows underneath, so "at the end" carries a few pixels of
+    // slack rather than requiring an exact match.
+    useEffect(() => {
+        const root = scrollRef.current;
+        if (!root) return;
+        const sync = () => {
+            const following = root.scrollHeight - root.clientHeight - root.scrollTop <= 4;
+            atBottom.current = following;
+            if (following) setNewCount(0);
+        };
+        root.addEventListener("scroll", sync, { passive: true });
+        return () => root.removeEventListener("scroll", sync);
+    }, []);
 
     const items = virtualizer.getVirtualItems();
     useEffect(() => {
