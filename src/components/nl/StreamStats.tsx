@@ -17,12 +17,22 @@ export function useArrivalRate(total: number): number {
     useEffect(() => {
         const id = setInterval(() => {
             const now = Date.now();
-            marks.current.push({ t: now, n: latest.current });
+            const n = latest.current;
+            // A counter that goes backwards was reset, and the marks taken
+            // before it describe a different run. Switching builds remounts the
+            // view that owns the count while this hook lives on the page above
+            // and keeps its window, so subtracting across the reset reported a
+            // negative arrival rate. The earlier marks are dropped instead.
+            const previous = marks.current[marks.current.length - 1];
+            if (previous && n < previous.n) marks.current = [];
+            marks.current.push({ t: now, n });
             while (marks.current.length > 2 && now - marks.current[0]!.t > 8000) marks.current.shift();
-            const first = marks.current[0];
+            const first = marks.current[0]!;
             const last = marks.current[marks.current.length - 1]!;
-            const seconds = (last.t - first!.t) / 1000;
-            setRate(seconds > 0 ? (last.n - first!.n) / seconds : 0);
+            const seconds = (last.t - first.t) / 1000;
+            // Arrivals only accumulate, so the floor holds the invariant no
+            // matter which way the count is fed in.
+            setRate(seconds > 0 ? Math.max(0, (last.n - first.n) / seconds) : 0);
         }, 1000);
         return () => clearInterval(id);
     }, []);
