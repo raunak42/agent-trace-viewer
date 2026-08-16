@@ -8,6 +8,7 @@ import type { Trace } from "@/lib/types";
 import { SessionView } from "@/components/nl/SessionView";
 import { StreamStats, useArrivalRate } from "@/components/nl/StreamStats";
 import { ChevronLeftIcon } from "@/components/nl/icons";
+import { TurnsSkeleton } from "@/components/nl/Skeleton";
 import { type Build, SESSION_BUILDS, isBuild } from "@/lib/builds";
 
 
@@ -192,7 +193,11 @@ function SessionPage({ traceId }: { traceId: string }) {
                         <code className="mt-1 font-mono text-2xs text-muted-foreground/50">{traceId}</code>
                     </div>
                 )}
-                {!anchor && !error && <div className="p-6 text-[13px] text-muted-foreground">Loading session…</div>}
+                {!anchor && !error && (
+                    <div className="h-full overflow-hidden px-6 py-5">
+                        <div className="mx-auto w-full max-w-[960px]"><TurnsSkeleton turns={4} /></div>
+                    </div>
+                )}
                 {anchor && (
                     <SessionView
                         key={build}
@@ -213,7 +218,11 @@ function SessionPage({ traceId }: { traceId: string }) {
 export default function Page({ params }: { params: Promise<{ traceId: string }> }) {
     const { traceId } = use(params);
     return (
-        <Suspense fallback={<div className="p-6 text-[13px] text-muted-foreground">Loading…</div>}>
+        <Suspense fallback={
+            <main className="flex h-dvh flex-col bg-background px-6 py-5">
+                <div className="mx-auto w-full max-w-[960px]"><TurnsSkeleton turns={4} /></div>
+            </main>
+        }>
             <SessionPage traceId={traceId} />
         </Suspense>
     );

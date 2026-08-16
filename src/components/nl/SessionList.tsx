@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { fetchSessionList } from "@/lib/api";
 import type { SessionSummary } from "@/lib/types";
 import { StatusSuccessIcon, StatusErrorIcon } from "./icons";
+import { SessionRowsSkeleton } from "./Skeleton";
 
 const COLUMNS = [
     { id: "started", label: "Started", width: 140 },
@@ -74,7 +75,7 @@ export function SessionList() {
             <div className="nl-scroll min-h-0 flex-1 overflow-auto" data-list-root>
                 {error && <div className="p-6 text-[13px] text-destructive">{error}</div>}
                 {!sessions && !error && (
-                    <div className="p-6 text-[13px] text-muted-foreground">Loading conversations…</div>
+                    <SessionRowsSkeleton rows={14} columns={COLUMNS} style={cellStyle as never} />
                 )}
                 {sessions?.map((s) => (
                     <div

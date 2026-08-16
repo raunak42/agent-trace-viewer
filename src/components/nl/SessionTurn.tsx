@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { Span, TraceSummary } from "@/lib/types";
 import { ChevronDownIcon, ChevronRightIcon } from "./icons";
+import { StepsSkeleton } from "./Skeleton";
 
 /* Node-type glyphs, drawn in their 24×24 / 1.5-stroke idiom. */
 const NodeIcon = ({ type }: { type: Span["node_type"] }) => {
@@ -157,7 +158,7 @@ export function SessionTurn({
                 </div>
                 {expanded && (
                     <div className="border-t border-border px-3.5 py-1.5">
-                        {loadingSpans && <div className="py-2 text-2xs text-muted-foreground">loading steps…</div>}
+                        {loadingSpans && <StepsSkeleton />}
                         {spans && roots.map((s) => (
                             <SpanNodeTree key={s.span_id} span={s} all={spans} depth={0} expandAll={expandAll} />
                         ))}

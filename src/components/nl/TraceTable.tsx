@@ -40,7 +40,7 @@ export const COLUMNS: Column[] = [
     { id: "traceId", label: "Trace", width: 130 },
 ];
 
-const cellStyle = (c: Column): React.CSSProperties => ({
+export const cellStyle = (c: Column): React.CSSProperties => ({
     width: c.width,
     flex: c.grow ? `1 1 ${c.width}px` : `0 0 ${c.width}px`,
     paddingLeft: 28,

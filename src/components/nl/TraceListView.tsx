@@ -10,6 +10,7 @@ import { TableHeader, TraceRow, ROW_HEIGHT } from "./TraceTable";
 import { BuildSwitch } from "./Chrome";
 import { StreamStats, useArrivalRate } from "./StreamStats";
 import { NewArrivalsPill } from "../NewArrivalsPill";
+import { TraceRowsSkeleton } from "./Skeleton";
 import { SessionList } from "./SessionList";
 
 const PAGE_SIZE = 50;
@@ -196,6 +197,9 @@ export function TraceListView({ build }: { build: Build }) {
                         style={{ overflowAnchor: "none" }}
                         data-list-root
                     >
+                        {stream.traces.length === 0 && stream.connection !== "error" && (
+                            <TraceRowsSkeleton rows={18} />
+                        )}
                         {virtualise ? (
                             <div style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
                                 <div ref={topSentinel} className="absolute top-0 left-0 h-px w-full" />
@@ -227,9 +231,7 @@ export function TraceListView({ build }: { build: Build }) {
                         <div ref={bottomSentinel} className="h-px" />
                         {/* Scrolls with the rows: older pages arrive at the end,
                             so this belongs there rather than pinned across the view. */}
-                        {stream.loadingOlder && (
-                            <div className="py-2 text-center text-2xs text-muted-foreground">loading older…</div>
-                        )}
+                        {stream.loadingOlder && stream.traces.length > 0 && <TraceRowsSkeleton rows={4} />}
                         {!stream.hasMore && stream.traces.length > 0 && !stream.loadingOlder && (
                             <div className="py-2 text-center text-2xs text-muted-foreground/60">start of buffer</div>
                         )}

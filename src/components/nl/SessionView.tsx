@@ -8,6 +8,7 @@ import { useSessionTail } from "@/lib/useSessionTail";
 import type { Span, TraceSummary } from "@/lib/types";
 import { SessionTurn } from "./SessionTurn";
 import { NewArrivalsPill } from "../NewArrivalsPill";
+import { TurnsSkeleton } from "./Skeleton";
 
 const PAGE = 50;
 
@@ -320,13 +321,12 @@ export function SessionView({ sessionId, anchorId, build, onStats, onTail, onHea
             >
                 <div className="mx-auto w-full max-w-[960px]">
                     <div ref={topSentinel} className="h-px" />
-                    {loadingOlder && (
-                        <div className="py-3 text-center text-2xs text-muted-foreground">loading earlier turns…</div>
-                    )}
+                    {loadingOlder && turns.length > 0 && <TurnsSkeleton turns={2} />}
                     {reachedStart && !loadingOlder && (
                         <div className="py-3 text-center text-2xs text-muted-foreground/60">start of conversation</div>
                     )}
 
+                    {turns.length === 0 && <TurnsSkeleton turns={4} />}
                     {virtualise ? (
                         <div style={{ height: totalSize, position: "relative" }}>
                             {items.map((item) => {
