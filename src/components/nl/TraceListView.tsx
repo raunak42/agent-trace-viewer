@@ -139,7 +139,13 @@ export function TraceListView({ build }: { build: Build }) {
     };
 
     const items = virtualizer.getVirtualItems();
-    const openTrace = (id: string) => router.push(`/traces/${id}`);
+    // The build travels with the click. It is the one thing being compared, so
+    // opening a row from the bulk list and landing on a virtualised transcript
+    // would silently swap the variable mid-comparison. Every other navigation
+    // already carries it — the transcript's tabs, its back link, and its
+    // recovery jump — so the URL alone keeps the choice sticky and there is no
+    // stored preference to get out of step with what the page is showing.
+    const openTrace = (id: string) => router.push(`/traces/${id}?build=${build}`);
 
     return (
         <main className="flex h-dvh flex-col bg-background text-foreground">
