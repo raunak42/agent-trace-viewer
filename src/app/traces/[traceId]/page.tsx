@@ -112,7 +112,7 @@ function SessionPage({ traceId }: { traceId: string }) {
         <Link
             key={b}
             href={`/traces/${traceId}?build=${b}`}
-            className={`flex flex-col justify-center border-b-2 px-4 py-2 transition-colors ${
+            className={`-mb-px flex flex-col justify-center border-b-2 px-4 py-2 transition-colors ${
                 build === b ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
             }`}
         >
@@ -131,7 +131,7 @@ function SessionPage({ traceId }: { traceId: string }) {
                 rate={rate}
                 note="one conversation"
             />
-            <div className="flex h-12 shrink-0 items-center gap-1 border-b border-border px-4">
+            <div className="flex shrink-0 items-stretch gap-1 border-b border-border px-4">
                 {BUILDS.map((b) => tab(b.id, b.label, b.note))}
             </div>
 
