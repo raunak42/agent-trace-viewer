@@ -11,7 +11,6 @@ import { BuildSwitch } from "./Chrome";
 import { StreamStats, useArrivalRate } from "./StreamStats";
 import { NewArrivalsPill } from "../NewArrivalsPill";
 import { TraceRowsSkeleton } from "./Skeleton";
-import { SessionList } from "./SessionList";
 
 const PAGE_SIZE = 50;
 
@@ -46,11 +45,6 @@ export function TraceListView({ build }: { build: Build }) {
     const rate = useArrivalRate(stream.liveCount);
     const router = useRouter();
     const [newCount, setNewCount] = useState(0);
-    /** Turns are what arrives; conversations are what people look for. The
-     *  turn list cannot reach a large conversation on its own — it is
-     *  newest-first and one thread receives at a time, so its top rows always
-     *  belong to the thread that just started. */
-    const [groupBySession, setGroupBySession] = useState(false);
 
     const scrollRef = useRef<HTMLDivElement>(null);
     const topSentinel = useRef<HTMLDivElement>(null);
@@ -159,30 +153,8 @@ export function TraceListView({ build }: { build: Build }) {
                 connection={stream.connection}
             />
             <BuildSwitch active={build} />
-            <div className="flex shrink-0 items-center gap-1 border-t border-border px-6 py-2">
-                {([["Turns", false], ["Conversations", true]] as const).map(([label, on]) => (
-                    <button
-                        key={label}
-                        type="button"
-                        onClick={() => setGroupBySession(on)}
-                        className={`cursor-pointer rounded-full px-3 py-1 text-xs transition-colors ${
-                            groupBySession === on
-                                ? "bg-primary text-primary-foreground"
-                                : "text-muted-foreground hover:bg-muted"
-                        }`}
-                    >
-                        {label}
-                    </button>
-                ))}
-                <span className="ml-3 text-2xs text-muted-foreground/60">
-                    {groupBySession
-                        ? "one row per conversation · click to open it"
-                        : "one row per turn, newest first"}
-                </span>
-            </div>
             <div className="flex min-h-0 flex-1 border-t border-border">
                 <div className="relative flex min-w-0 flex-1 flex-col">
-                    {groupBySession ? <SessionList /> : <>
                     <TableHeader />
                     {/* The browser also keeps the viewport still when content
                         is inserted above it, and rows compensated for twice
@@ -237,7 +209,6 @@ export function TraceListView({ build }: { build: Build }) {
                         )}
                     </div>
                     <NewArrivalsPill count={newCount} onClick={jumpToNewest} />
-                    </>}
                 </div>
             </div>
         </main>
