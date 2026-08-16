@@ -1,8 +1,20 @@
-# neatlog-viewer
+# agent-trace-viewer
 
-A trace/log viewer for [neatlog-stream](https://github.com/raunak42/neatlog-stream):
-scrollable history plus a live tail, in two versions so the cost of *not*
-optimising is visible side by side.
+A viewer for agent traces — scrollable history plus a live tail over a stream
+that never stops arriving, built three times so the cost of each shortcut is
+visible rather than argued about.
+
+| build | fetches | renders |
+| --- | --- | --- |
+| Bulk fetch | everything in one request | every row mounted |
+| Paged API | cursor pages | every row mounted |
+| Paged + virtualised | cursor pages | only rows near the viewport |
+
+Two independent choices, one variable at a time: bulk against paged isolates
+how much is asked for, paged against windowed isolates how much is mounted.
+The backend holds ~100,000 traces in a ring buffer and adds five a second, and
+one conversation runs indefinitely, so the transcript is always long and always
+growing.
 
 ```bash
 npm install
