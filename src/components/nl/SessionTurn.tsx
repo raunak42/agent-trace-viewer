@@ -172,10 +172,21 @@ function SpanNodeTree({ span, all, depth, expandAll, last = true }: {
             </button>
 
             {showBody && hasDetail && (
-                <div className="mb-1 space-y-1.5" style={{ marginLeft: INDENT }}>
-                    {d.input_value && <SpanField label="Input" value={d.input_value} />}
-                    {d.output_value && <SpanField label="Output" value={d.output_value} />}
-                    {d.error_message && <SpanField label="Error" value={d.error_message} tone="error" />}
+                // The body sits between this node's row and its children, so
+                // the spine has to run past it. Two elements rather than one:
+                // the rail is measured from this node's own left edge, and the
+                // fields are indented, which cannot both be one box.
+                // Padding, not a margin, for the gap under the fields: a
+                // bottom margin on the last in-flow child collapses out of this
+                // box, so the rail — which ends at the box — stopped 4px short
+                // of the next row's own segment.
+                <div className="relative pb-1">
+                    {kids.length > 0 && <Rail top={0} bottom={0} />}
+                    <div className="space-y-1.5" style={{ marginLeft: INDENT }}>
+                        {d.input_value && <SpanField label="Input" value={d.input_value} />}
+                        {d.output_value && <SpanField label="Output" value={d.output_value} />}
+                        {d.error_message && <SpanField label="Error" value={d.error_message} tone="error" />}
+                    </div>
                 </div>
             )}
             {showBody && kids.map((c, i) => (
