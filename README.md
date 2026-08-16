@@ -11,7 +11,7 @@ visible rather than argued about.
 | Paged + virtualised | cursor pages | only rows near the viewport |
 
 Two independent choices, one variable at a time: bulk against paged isolates
-how much is asked for, paged against windowed isolates how much is mounted.
+how much is asked for, paged against virtualised isolates how much is mounted.
 The backend holds ~100,000 traces in a ring buffer and adds five a second, and
 one conversation runs indefinitely, so the transcript is always long and always
 growing.

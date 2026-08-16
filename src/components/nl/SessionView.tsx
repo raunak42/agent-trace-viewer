@@ -19,9 +19,9 @@ const PAGE = 50;
  *
  *   bulk     one request, everything mounted
  *   paged    cursor pages, everything mounted
- *   windowed cursor pages, viewport only
+ *   virtualised cursor pages, viewport only
  *
- * bulk against paged isolates how much is asked for; paged against windowed
+ * bulk against paged isolates how much is asked for; paged against virtualised
  * isolates how much is mounted.
  * Everything else — the subscription, the projection, the paging behind the
  * first load — is shared by construction.

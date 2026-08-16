@@ -9,27 +9,27 @@
  *
  *   bulk      one request, everything mounted
  *   paged     a page at a time, everything mounted
- *   windowed  a page at a time, only what is near the viewport mounted
+ *   virtualised a page at a time, only what is near the viewport mounted
  *
- * bulk against paged isolates how much is asked for; paged against windowed
+ * bulk against paged isolates how much is asked for; paged against virtualised
  * isolates how much is mounted. Three is also the most a reader can hold at
  * once — a fourth turns the switch into something to study rather than read.
  */
-export type Build = "bulk" | "paged" | "windowed";
+export type Build = "bulk" | "paged" | "virtualised";
 
 export const BUILDS: Array<{ id: Build; label: string; note: string }> = [
     { id: "bulk", label: "Bulk fetch", note: "one request · everything mounted" },
     { id: "paged", label: "Paged API", note: "cursor pages · everything mounted" },
-    { id: "windowed", label: "Paged + virtualised", note: "cursor pages · viewport only" },
+    { id: "virtualised", label: "Paged + virtualised", note: "cursor pages · viewport only" },
 ];
 
 export const isBuild = (v: string | null): v is Build =>
-    v === "bulk" || v === "paged" || v === "windowed";
+    v === "bulk" || v === "paged" || v === "virtualised";
 
 /** Takes the whole thing in one request. */
 export const bulkFetches = (b: Build) => b === "bulk";
 /** Mounts only what is near the viewport. */
-export const virtualises = (b: Build) => b === "windowed";
+export const virtualises = (b: Build) => b === "virtualised";
 
 /**
  * How many rows the list's single-request build asks for. 15,000 already puts

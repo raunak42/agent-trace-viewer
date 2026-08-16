@@ -24,7 +24,7 @@ function SessionPage({ traceId }: { traceId: string }) {
     const params = useSearchParams();
     const router = useRouter();
     const q = params.get("build");
-    const build: Build = isBuild(q) ? q : "windowed";
+    const build: Build = isBuild(q) ? q : "virtualised";
 
     // Keyed by the id it was fetched for, so switching trace clears the old
     // one without a synchronous setState at the top of the effect.
