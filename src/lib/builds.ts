@@ -39,9 +39,17 @@ export const virtualises = (b: Build) => b === "virtualised";
  */
 export const BULK_LIMIT = 15_000;
 /**
- * The transcript asks for more. A turn is worth roughly a third of a row in
- * nodes — it renders as two blocks and a header rather than a full table row —
- * so the same count lands much lighter here, and 15,000 turns was not enough
- * to make the page feel it.
+ * The transcript asks for far more. A turn is worth roughly a third of a row in
+ * nodes — two blocks and a header rather than a full table row — so the same
+ * count lands much lighter here.
+ *
+ * 25,000 blocked the main thread for 3.3 seconds and held 549 MB, which the
+ * numbers call a struggle but a reader does not: the cost is paid before the
+ * first paint, so it reads as a slow load rather than a page fighting you.
+ * Scrolling stays smooth afterwards because a long document is mostly the
+ * compositor's problem, not the main thread's.
+ *
+ * This is the API's DUMP_MAX exactly, so it is also the most that can be asked
+ * for without raising the ceiling on both sides.
  */
-export const SESSION_BULK_LIMIT = 25_000;
+export const SESSION_BULK_LIMIT = 50_000;
