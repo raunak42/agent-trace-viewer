@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { fetchSessionBulk, fetchSessionPage, fetchTrace } from "@/lib/api";
-import { type Build, BULK_LIMIT, FANOUT_LIMIT, bulkFetches, fansOut, virtualises } from "@/lib/builds";
+import { type Build, SESSION_BULK_LIMIT, FANOUT_LIMIT, bulkFetches, fansOut, virtualises } from "@/lib/builds";
 import { useSessionTail } from "@/lib/useSessionTail";
 import type { Span, TraceSummary } from "@/lib/types";
 import { SessionTurn } from "./SessionTurn";
@@ -90,7 +90,7 @@ export function SessionView({ sessionId, anchorId, build, onStats, onTail, onHea
         prefetchStarted.current = false;
         (async () => {
             if (bulk) {
-                const dump = await fetchSessionBulk(sessionId, fanout ? FANOUT_LIMIT : BULK_LIMIT);
+                const dump = await fetchSessionBulk(sessionId, fanout ? FANOUT_LIMIT : SESSION_BULK_LIMIT);
                 if (cancelled) return;
                 for (const t of dump.logs) ids.current.add(t.id);
                 setTurns(dump.logs);

@@ -44,12 +44,26 @@ export const fansOut = (b: Build) => b === "fanout";
 /** Mounts only what is near the viewport. */
 export const virtualises = (b: Build) => b === "windowed";
 
-/** How many items the single-request builds ask for. */
+/**
+ * How many rows the list's single-request build asks for. 15,000 already puts
+ * ~470,000 nodes in the document and blocks the main thread for over a second,
+ * which is the point being made; more only risks the tab dying instead of
+ * struggling, and a dead tab demonstrates nothing.
+ */
 export const BULK_LIMIT = 15_000;
 /**
- * How many turns the fan-out build will chase. Lower than the bulk limit on
- * purpose: this is the one build whose cost lands on the server as well as the
- * browser, and 15,000 round trips is a load test of our own API rather than a
- * demonstration of theirs.
+ * The transcript asks for more. A turn is worth roughly a third of a row in
+ * nodes — it renders as two blocks and a header rather than a full table row —
+ * so the same row count lands much lighter here, and 15,000 turns was not
+ * enough to make the page feel it.
  */
-export const FANOUT_LIMIT = 2_000;
+export const SESSION_BULK_LIMIT = 25_000;
+/**
+ * How many turns the fan-out build will chase — the size Neatlogs named as
+ * where their transcript starts to struggle, so the comparison is against the
+ * case they actually reported. Far below the bulk limit on purpose: this is the
+ * one build whose cost lands on the server as well as the browser, and 25,000
+ * round trips is a load test of our own API rather than a demonstration of
+ * theirs.
+ */
+export const FANOUT_LIMIT = 2_500;
