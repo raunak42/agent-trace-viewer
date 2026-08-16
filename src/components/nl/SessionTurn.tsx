@@ -2,64 +2,35 @@
 
 import { useState } from "react";
 import type { Span, TraceSummary } from "@/lib/types";
+import { HugeiconsIcon, type IconSvgElement } from "@hugeicons/react";
+import { Link04Icon, RoboticIcon, Search01Icon, Wrench01Icon } from "@hugeicons/core-free-icons";
 import { ChevronDownIcon, ChevronRightIcon } from "./icons";
 import { StepsSkeleton } from "./Skeleton";
 
 /*
- * Node-type glyphs, taken from app.neatlogs.com: Hugeicons, 24×24 viewBox,
- * 1.5 stroke, currentColor, drawn into a 17px box. Agent and chain are their
- * exact paths, lifted off the rendered SVG. The trace we measured had no tool
- * spans, so that one is the same family's wrench rather than a copy.
+ * Node-type glyphs, straight from the library app.neatlogs.com uses. Their
+ * rendered paths matched Hugeicons byte for byte — the robot is RoboticIcon,
+ * the link is Link04Icon (Unlink04 carries the same two paths plus two tick
+ * marks) — so the icons are imported rather than transcribed, which also
+ * settles the tool glyph the trace we measured had no span for.
+ *
+ * Named imports off a 5,443-icon barrel, but the package declares no side
+ * effects, so only what is referenced here is bundled.
  */
-const NodeIcon = ({ type }: { type: Span["node_type"] }) => {
-    const p = { xmlns: "http://www.w3.org/2000/svg", width: 24, height: 24, viewBox: "0 0 24 24",
-                fill: "none", stroke: "currentColor", strokeWidth: 1.5,
-                className: "size-full", "aria-hidden": true };
-    const icon = () => {
-        switch (type) {
-            case "agent_action":
-                return (
-                    <svg {...p} strokeLinejoin="round">
-                        <path d="M19 16V14C19 11.1716 19 9.75736 18.1213 8.87868C17.2426 8 15.8284 8 13 8H11C8.17157 8 6.75736 8 5.87868 8.87868C5 9.75736 5 11.1716 5 14V16C5 18.8284 5 20.2426 5.87868 21.1213C6.75736 22 8.17157 22 11 22H13C15.8284 22 17.2426 22 18.1213 21.1213C19 20.2426 19 18.8284 19 16Z" />
-                        <path d="M19 18C20.4142 18 21.1213 18 21.5607 17.5607C22 17.1213 22 16.4142 22 15C22 13.5858 22 12.8787 21.5607 12.4393C21.1213 12 20.4142 12 19 12" />
-                        <path d="M5 18C3.58579 18 2.87868 18 2.43934 17.5607C2 17.1213 2 16.4142 2 15C2 13.5858 2 12.8787 2.43934 12.4393C2.87868 12 3.58579 12 5 12" />
-                        <path d="M13.5 3.5C13.5 4.32843 12.8284 5 12 5C11.1716 5 10.5 4.32843 10.5 3.5C10.5 2.67157 11.1716 2 12 2C12.8284 2 13.5 2.67157 13.5 3.5Z" strokeLinejoin="miter" />
-                        <path d="M12 5V8" strokeLinecap="round" />
-                        <path d="M9 13V14" strokeLinecap="round" />
-                        <path d="M15 13V14" strokeLinecap="round" />
-                        <path d="M10 17.5C10 17.5 10.6667 18 12 18C13.3333 18 14 17.5 14 17.5" strokeLinecap="round" />
-                    </svg>
-                );
-            case "chain":
-                return (
-                    <svg {...p} strokeLinecap="round">
-                        <path d="M10 13.229C10.1416 13.4609 10.3097 13.6804 10.5042 13.8828C11.7117 15.1395 13.5522 15.336 14.9576 14.4722C15.218 14.3121 15.4634 14.1157 15.6872 13.8828L18.9266 10.5114C20.3578 9.02184 20.3578 6.60676 18.9266 5.11718C17.4953 3.6276 15.1748 3.62761 13.7435 5.11718L13.03 5.85978" />
-                        <path d="M10.9703 18.14L10.2565 18.8828C8.82526 20.3724 6.50471 20.3724 5.07345 18.8828C3.64218 17.3932 3.64218 14.9782 5.07345 13.4886L8.31287 10.1172C9.74413 8.62761 12.0647 8.6276 13.4959 10.1172C13.6904 10.3195 13.8584 10.539 14 10.7708" />
-                    </svg>
-                );
-            case "tool_call":
-                return (
-                    <svg {...p} strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M15.2 6.8a3.8 3.8 0 0 0 4.62 5.96l-8.6 8.6a2.06 2.06 0 0 1-2.92-2.92l8.6-8.6A3.8 3.8 0 0 0 15.2 6.8Z" />
-                        <path d="M15.2 6.8 18.9 3.1M20.9 5.1l-3.7 3.7" />
-                    </svg>
-                );
-            default:
-                return (
-                    <svg {...p} strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M19 11a8 8 0 1 0-16 0 8 8 0 0 0 16 0ZM17 17l4 4" />
-                    </svg>
-                );
-        }
-    };
-    return (
-        <span className="relative inline-flex shrink-0 text-primary transition-colors">
-            <span className="flex shrink-0 items-center justify-center" style={{ width: 17, height: 17 }}>
-                {icon()}
-            </span>
-        </span>
-    );
+const NODE_ICON: Record<Span["node_type"], IconSvgElement> = {
+    agent_action: RoboticIcon,
+    chain: Link04Icon,
+    tool_call: Wrench01Icon,
+    retrieval: Search01Icon,
 };
+
+const NodeIcon = ({ type }: { type: Span["node_type"] }) => (
+    <span className="relative inline-flex shrink-0 text-primary transition-colors">
+        <span className="flex shrink-0 items-center justify-center" style={{ width: 17, height: 17 }}>
+            <HugeiconsIcon icon={NODE_ICON[type]} size={17} strokeWidth={1.5} aria-hidden />
+        </span>
+    </span>
+);
 
 /* Their toggle is a 16px ring holding an 8×8 line drawing rather than a text
    glyph: one stroke for collapse, crossed strokes for expand. A "−" set in the
