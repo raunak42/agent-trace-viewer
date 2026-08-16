@@ -33,9 +33,7 @@ export function TraceRowsSkeleton({ rows = 16 }: { rows?: number }) {
                     style={{ height: ROW_HEIGHT }}>
                     {COLUMNS.map((c, i) => (
                         <div key={c.id} style={cellStyle(c)} className="flex h-full min-w-0 items-center">
-                            {c.id === "select"
-                                ? <Bar w={16} h={16} />
-                                : <Bar w={widthAt(r * COLUMNS.length + i, c.grow ? 55 : 40)} />}
+                            <Bar w={widthAt(r * COLUMNS.length + i, c.grow ? 55 : 40)} />
                         </div>
                     ))}
                 </div>

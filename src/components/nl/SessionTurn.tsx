@@ -189,12 +189,13 @@ function SpanField({ label, value, tone }: { label: string; value: string; tone?
  * session costs one page of summaries instead of 900 full documents.
  */
 export function SessionTurn({
-    trace, spans, highlighted, divider, expanded, onToggle, loadingSpans,
+    trace, spans, highlighted, spaced, expanded, onToggle, loadingSpans,
 }: {
     trace: TraceSummary;
     spans?: Span[];
     highlighted: boolean;
-    divider: boolean;
+    /** Every turn but the first, which needs the gap above it but no rule. */
+    spaced: boolean;
     expanded: boolean;
     onToggle: () => void;
     loadingSpans?: boolean;
@@ -206,7 +207,7 @@ export function SessionTurn({
     const output = trace.output || "";
 
     return (
-        <section id={`turn-${trace._id}`} className={divider ? "border-t border-border pt-8" : ""}>
+        <section id={`turn-${trace._id}`} className={spaced ? "pt-8" : ""}>
             <div className="mb-3 flex flex-col items-end">
                 <span className="mb-1.5 font-mono text-4xs tracking-caps-widest text-muted-foreground/80 uppercase">
                     INPUT

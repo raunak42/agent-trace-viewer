@@ -25,9 +25,10 @@ export interface Column {
 }
 
 /** Their column set, minus the ones our data never fills (detections, evals,
- *  comments) and plus the numeric ones their own row payload already carries. */
+ *  comments) and plus the numeric ones their own row payload already carries.
+ *  No select column either: theirs opens a bulk-action bar this demo has no
+ *  actions for, so it was a checkbox that could be ticked and never used. */
 export const COLUMNS: Column[] = [
-    { id: "select", label: "", width: 56 },
     { id: "ingestedAt", label: "Ingested at", width: 140 },
     { id: "replay", label: "Replay", width: 112, align: "center" },
     { id: "status", label: "Status", width: 90, align: "center" },
@@ -60,19 +61,15 @@ export function TableHeader({ sortDesc = true }: { sortDesc?: boolean }) {
                     style={cellStyle(c)}
                     className="flex h-full min-w-0 items-center truncate text-[13px] text-secondary-foreground/80"
                 >
-                    {c.id === "select" ? (
-                        <span className="size-4 shrink-0 cursor-pointer rounded-sm border border-primary shadow-sm" />
-                    ) : (
-                        <button type="button" className="flex min-w-0 cursor-pointer items-center gap-1 uppercase select-none">
-                            <span className="truncate">{c.label}</span>
-                            {c.id === "ingestedAt" && (
-                                <span className="flex shrink-0 flex-col leading-none text-muted-foreground/50">
-                                    <ChevronUpIcon className="size-3" />
-                                    {sortDesc && <ChevronDownIcon className="size-3 -mt-[5px]" />}
-                                </span>
-                            )}
-                        </button>
-                    )}
+                    <button type="button" className="flex min-w-0 cursor-pointer items-center gap-1 uppercase select-none">
+                        <span className="truncate">{c.label}</span>
+                        {c.id === "ingestedAt" && (
+                            <span className="flex shrink-0 flex-col leading-none text-muted-foreground/50">
+                                <ChevronUpIcon className="size-3" />
+                                {sortDesc && <ChevronDownIcon className="size-3 -mt-[5px]" />}
+                            </span>
+                        )}
+                    </button>
                 </div>
             ))}
         </div>
@@ -87,10 +84,9 @@ const fmtLatency = (ms: number) =>
     ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(2)}s`;
 
 export function TraceRow({
-    trace, selected, onOpen, animate = false,
+    trace, onOpen, animate = false,
 }: {
     trace: TraceSummary;
-    selected?: boolean;
     onOpen: (t: TraceSummary) => void;
     animate?: boolean;
 }) {
@@ -105,20 +101,12 @@ export function TraceRow({
             onClick={() => onOpen(trace)}
             data-trace-id={trace.id}
             className={`flex w-full cursor-pointer items-center border-b border-border-soft text-[13px] text-muted-foreground transition-colors hover:bg-surface-subtle/80 ${
-                selected ? "bg-surface-subtle" : ""
-            } ${animate ? "row-fade" : ""}`}
+                animate ? "row-fade" : ""
+            }`}
             style={{ height: ROW_HEIGHT }}
         >
             {COLUMNS.map((c) => {
                 switch (c.id) {
-                    case "select":
-                        return cell(c, (
-                            <span
-                                className={`size-4 shrink-0 cursor-pointer rounded-sm border border-primary shadow-sm ${
-                                    selected ? "bg-primary" : ""
-                                }`}
-                            />
-                        ));
                     case "ingestedAt":
                         return cell(c, (
                             <span className="block max-w-full truncate font-mono whitespace-nowrap tabular-nums">

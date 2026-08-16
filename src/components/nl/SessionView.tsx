@@ -261,7 +261,7 @@ export function SessionView({ sessionId, anchorId, build, onStats, onTail, onHea
         expanded: Boolean(open[t._id]),
         onToggle: () => void toggle(t),
         highlighted: t._id === anchorId,
-        divider: index > 0,
+        spaced: index > 0,
     });
 
     return (
