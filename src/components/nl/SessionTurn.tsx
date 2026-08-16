@@ -78,10 +78,35 @@ const TYPE_LABEL: Record<Span["node_type"], string> = {
 
 const dur = (ms: number) => (ms < 1000 ? `${Math.round(ms)}ms` : `${(ms / 1000).toFixed(1)}s`);
 
+/*
+ * Rail geometry, measured off app.neatlogs.com: each level indents 37px, and
+ * the spine sits at the parent's ring centre — 12px in, being pl-1 plus half
+ * of the 16px ring. The row is 32px tall, so that centre is 16px down.
+ *
+ * Theirs is one unbroken line because every node contributes a segment that
+ * meets its neighbours: the parent bridges from its ring down to its row's
+ * bottom, and each child carries the line through its whole subtree unless it
+ * is the last, where it stops at the ring and turns into the stub. Drawing an
+ * "L" per child instead leaves a gap wherever a subtree is taller than the
+ * stub, which is what made ours look cut up.
+ */
+const INDENT = 37;
+const RAIL_X = 12;
+const ROW_MID = 16;
+/** Spine to the ring's left edge, not its centre — the stub stops at the circle. */
+const STUB_W = INDENT - 8;
+
+const Rail = ({ top, height, bottom }: { top: number; height?: number; bottom?: number }) => (
+    <span className="absolute w-px bg-border" aria-hidden
+        style={{ left: RAIL_X, top, ...(bottom !== undefined ? { bottom } : { height }) }} />
+);
+
 /** One node plus its subtree. `all` stays the complete span list so the
  *  recursion can find grandchildren, not just immediate kids. */
-function SpanNodeTree({ span, all, depth, expandAll }: {
+function SpanNodeTree({ span, all, depth, expandAll, last = true }: {
     span: Span; all: Span[]; depth: number; expandAll: boolean;
+    /** Last of its siblings, so the spine stops here rather than passing through. */
+    last?: boolean;
 }) {
     const [open, setOpen] = useState(false);
     const kids = all.filter((s) => s.parent_span_id === span.span_id);
@@ -91,13 +116,20 @@ function SpanNodeTree({ span, all, depth, expandAll }: {
     const showBody = expandAll || open;
 
     return (
-        <div className="relative" style={{ paddingLeft: depth === 0 ? 0 : 26 }}>
+        <div className="relative" style={{ paddingLeft: depth === 0 ? 0 : INDENT }}>
             {depth > 0 && (
                 <>
-                    <span className="absolute top-0 left-[12px] h-4 w-px bg-border" aria-hidden />
-                    <span className="absolute top-4 left-[12px] h-px w-[26px] bg-border" aria-hidden />
+                    {/* Through the whole subtree, or stopping at the ring if
+                        this is the last child. */}
+                    {last
+                        ? <Rail top={0} height={ROW_MID} />
+                        : <Rail top={0} bottom={0} />}
+                    <span className="absolute h-px bg-border" aria-hidden
+                        style={{ left: RAIL_X, top: ROW_MID, width: STUB_W }} />
                 </>
             )}
+            {/* The bridge from this node's own ring into its children. */}
+            {showBody && kids.length > 0 && <Rail top={ROW_MID} height={ROW_MID} />}
             {/* Their whole row is the button, not a control beside a row: one
                 hit target, one hover, and the type reads as part of the name
                 rather than a badge sitting next to it. Geometry lifted off
@@ -111,7 +143,10 @@ function SpanNodeTree({ span, all, depth, expandAll }: {
                     expandable ? "cursor-pointer hover:bg-muted/40" : ""
                 }`}
             >
-                <span className="flex w-4 shrink-0 items-center justify-center">
+                {/* Above the rail: the segments tile through the ring's own
+                    band to stay contiguous, and the filled circle is what hides
+                    the crossing — the line reads as meeting its edge. */}
+                <span className="relative z-[1] flex w-4 shrink-0 items-center justify-center">
                     <span className={`flex size-4 items-center justify-center rounded-full border border-border bg-background text-muted-foreground/70 transition-colors ${
                         expandable
                             ? "group-hover/node:border-foreground/25 group-hover/node:text-foreground"
@@ -137,14 +172,15 @@ function SpanNodeTree({ span, all, depth, expandAll }: {
             </button>
 
             {showBody && hasDetail && (
-                <div className="mb-1 ml-[28px] space-y-1.5">
+                <div className="mb-1 space-y-1.5" style={{ marginLeft: INDENT }}>
                     {d.input_value && <SpanField label="Input" value={d.input_value} />}
                     {d.output_value && <SpanField label="Output" value={d.output_value} />}
                     {d.error_message && <SpanField label="Error" value={d.error_message} tone="error" />}
                 </div>
             )}
-            {showBody && kids.map((c) => (
-                <SpanNodeTree key={c.span_id} span={c} all={all} depth={depth + 1} expandAll={expandAll} />
+            {showBody && kids.map((c, i) => (
+                <SpanNodeTree key={c.span_id} span={c} all={all} depth={depth + 1}
+                    expandAll={expandAll} last={i === kids.length - 1} />
             ))}
         </div>
     );
